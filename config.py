@@ -1,0 +1,39 @@
+import os
+
+# 基础路径配置
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+DOCUMENTS_DIR = os.path.join(DATA_DIR, 'documents')
+VECTOR_STORE_DIR = os.path.join(DATA_DIR, 'vector_store')
+
+# RAG配置
+RAG_CONFIG = {
+    # 文档加载配置
+    "document_loader": {
+        "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md"]
+    },
+    
+    # 文本分割配置
+    "text_splitter": {
+        "chunk_size": 1000,
+        "chunk_overlap": 200
+    },
+    
+    # 嵌入模型配置
+    "embeddings": {
+        "model_type": "ollama",  # ollama 或 huggingface
+        "model_name": "nomic-embed-text"
+    },
+    
+    # 向量存储配置
+    "vector_store": {
+        "type": "faiss",  # faiss 或 chroma
+        "index_name": "document_index"
+    },
+    
+    # 检索器配置
+    "retriever": {
+        "top_k": 4,
+        "score_threshold": 0.6
+    }
+}

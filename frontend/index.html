@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Module</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <div id="chat-history" class="chat-history"></div>
+        
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+            <label>
+                <input type="checkbox" id="use-rag"> Use RAG
+            </label>
+        </div>
+        
+        <div class="config-panel">
+            <h3>Configuration</h3>
+            <select id="model-type">
+                <option value="ollama">Ollama (Local)</option>
+                <option value="openai">OpenAI API</option>
+            </select>
+            <input type="text" id="model-name" placeholder="Model name" value="llama3">
+            <button onclick="updateConfig()">Update Config</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
