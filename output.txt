@@ -1,0 +1,1253 @@
+├── ./
+│   ├── allPath2.py
+│   ├── config.py
+│   └── run_demo.py
+│   ├── RAG/
+│   │   ├── __init__.py
+│   │   ├── document_loader.py
+│   │   ├── embeddings.py
+│   │   ├── retriever.py
+│   │   ├── text_splitter.py
+│   │   └── vector_store.py
+│   ├── backend/
+│   │   ├── ai_service.py
+│   │   ├── main.py
+│   │   ├── rag.py
+│   │   └── requirements.txt
+│   ├── data/
+│   │   ├── data\documents/
+│   │   └── data\vector_store/
+│   └── frontend/
+│       ├── index.html
+│       ├── script.js
+│       └── style.css
+=== FILE: allPath2.py ===
+import os
+import json
+from pathlib import Path
+import argparse
+from typing import List, Dict, Tuple, TextIO
+
+def is_binary_file(file_path: Path) -> bool:
+    """判断文件是否为二进制文件"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            f.read()
+        return False
+    except (UnicodeDecodeError, UnicodeError):
+        return True
+
+def generate_tree(base_path: Path, ignored_dirs: List[str]) -> Tuple[Dict, List]:
+    """
+    生成项目目录树结构
+    :param base_path: 根目录路径
+    :param ignored_dirs: 忽略的文件夹名称列表
+    :return: (目录树结构, 代码块列表)
+    """
+    code_blocks = []
+    tree = _build_tree_node(base_path, base_path, code_blocks, ignored_dirs)
+    return tree, code_blocks
+
+def _build_tree_node(path: Path, base_path: Path, code_blocks: List[Dict], ignored_dirs: List[str]) -> Dict:
+    """递归构建目录树节点"""
+    tree_node = {"name": str(path.relative_to(base_path)), "directories": [], "files": []}
+    
+    for entry in sorted(path.iterdir(), key=lambda e: e.name):
+        if entry.name in ignored_dirs:
+            continue
+            
+        if entry.name in ["output.json", "output.txt"]:
+            continue
+            
+        if entry.is_dir():
+            subtree = _build_tree_node(entry, base_path, code_blocks, ignored_dirs)
+            tree_node["directories"].append(subtree)
+        else:
+            if not is_binary_file(entry):
+                content = entry.read_text(encoding='utf-8')
+                code_blocks.append({
+                    "filename": str(entry.relative_to(base_path)),
+                    "content": content
+                })
+                tree_node["files"].append({
+                    "name": entry.name,
+                    "content_index": len(code_blocks) - 1
+                })
+                
+    return tree_node
+
+def render_tree_to_json(tree: Dict, code_blocks: List, output_file: Path):
+    """将目录树渲染为JSON格式"""
+    data = {
+        "tree": tree,
+        "code_blocks": code_blocks
+    }
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def render_tree_to_txt(tree: Dict, code_blocks: List, output_file: Path):
+    """将目录树渲染为TXT格式"""
+    with open(output_file, 'w', encoding='utf-8') as f:
+        _render_tree_structure(tree, f)
+        _render_file_contents(tree, code_blocks, f)
+
+def _render_tree_structure(node: Dict, f: TextIO, prefix: str = "", last: bool = False):
+    """递归渲染目录结构"""
+    connector = "└──" if last else "├──"
+    f.write(f"{prefix}{connector} {node['name']}/\n")
+    new_prefix = prefix + ("    " if last else "│   ")
+
+    # 写入当前目录下的文件
+    for i, file in enumerate(node['files']):
+        is_last = i == len(node['files']) - 1
+        file_connector = "└──" if is_last else "├──"
+        f.write(f"{new_prefix}{file_connector} {file['name']}\n")
+
+    # 递归写入子目录
+    children = node['directories']
+    for i, child in enumerate(children):
+        is_last = i == len(children) - 1
+        _render_tree_structure(child, f, new_prefix, is_last)
+
+def _render_file_contents(node: Dict, code_blocks: List, f: TextIO):
+    """递归渲染文件内容"""
+    for file in node['files']:
+        idx = file['content_index']
+        filename = code_blocks[idx]['filename']
+        content = code_blocks[idx]['content']
+        f.write(f"=== FILE: {filename} ===\n")
+        f.write(f"{content}\n")
+        f.write("=== END ===\n\n")
+
+    for child in node['directories']:
+        _render_file_contents(child, code_blocks, f)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='生成项目结构及代码块内容')
+    parser.add_argument('--format', '-f', type=str, default='json', choices=['json', 'txt'],
+                        help='输出格式: json 或 txt')
+    args = parser.parse_args()
+
+    base_path = Path('.')
+    output_filename = 'output.json' if args.format == 'json' else 'output.txt'
+    output_file = base_path / output_filename
+
+    ignored_dirs = [
+        ".git", "log", "__pycache__", "node_modules",
+        "allPath.py", "output.json", "output.txt", ".vscode"
+    ]
+
+    tree, code_blocks = generate_tree(base_path, ignored_dirs)
+
+    if args.format == 'json':
+        render_tree_to_json(tree, code_blocks, output_file)
+    else:
+        render_tree_to_txt(tree, code_blocks, output_file)
+
+    print(f"输出已保存到 {output_file}")
+=== END ===
+
+=== FILE: config.py ===
+import os
+
+# 基础路径配置
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+DOCUMENTS_DIR = os.path.join(DATA_DIR, 'documents')
+VECTOR_STORE_DIR = os.path.join(DATA_DIR, 'vector_store')
+
+# RAG配置
+RAG_CONFIG = {
+    # 文档加载配置
+    "document_loader": {
+        "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md"]
+    },
+    
+    # 文本分割配置
+    "text_splitter": {
+        "chunk_size": 1000,
+        "chunk_overlap": 200
+    },
+    
+    # 嵌入模型配置
+    "embeddings": {
+        "model_type": "ollama",  # ollama 或 huggingface
+        "model_name": "nomic-embed-text"
+    },
+    
+    # 向量存储配置
+    "vector_store": {
+        "type": "faiss",  # faiss 或 chroma
+        "index_name": "document_index"
+    },
+    
+    # 检索器配置
+    "retriever": {
+        "top_k": 4,
+        "score_threshold": 0.6
+    }
+}
+=== END ===
+
+=== FILE: run_demo.py ===
+import subprocess
+import webbrowser
+import time
+import os
+import shutil
+from pathlib import Path
+
+def initialize_rag():
+    """初始化RAG系统，强制重建向量索引"""
+    # 删除现有向量库
+    vector_store_dir = Path("data/vector_store")
+    if vector_store_dir.exists():
+        shutil.rmtree(vector_store_dir)
+    
+    # 导入RAG初始化函数
+    from RAG import initialize_rag_system
+    
+    # 创建RAG系统
+    print("Initializing RAG system...")
+    rag_retriever = initialize_rag_system(force_rebuild=True)
+    print("RAG system initialized successfully")
+    return rag_retriever
+
+def run_demo():
+    # 初始化RAG系统
+    initialize_rag()
+    
+    # 启动后端
+    backend_dir = os.path.join(os.path.dirname(__file__), 'backend')
+    backend_process = subprocess.Popen(
+        ['uvicorn', 'main:app', '--reload'],
+        cwd=backend_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    
+    print("Starting backend server...")
+    time.sleep(3)  # 等待服务器启动
+    
+    # 打开前端
+    print("Opening chat interface in browser...")
+    webbrowser.open('http://localhost:8000')
+    
+    print("Chat interface opened. Press Ctrl+C to stop.")
+    
+    try:
+        backend_process.wait()
+    except KeyboardInterrupt:
+        backend_process.terminate()
+        print("\nServer stopped")
+
+if __name__ == "__main__":
+    run_demo()
+=== END ===
+
+=== FILE: RAG\__init__.py ===
+from .document_loader import DocumentLoader
+from .text_splitter import TextSplitter
+from .embeddings import EmbeddingModel
+from .vector_store import VectorStore
+from .retriever import Retriever
+from config import DOCUMENTS_DIR, VECTOR_STORE_DIR
+import os
+
+def initialize_rag_system(force_rebuild=False):
+    """初始化RAG系统"""
+    # 检查向量存储是否存在
+    vector_store = VectorStore()
+    if not force_rebuild and vector_store.index_path.exists():
+        print("Using existing vector store")
+        return Retriever()
+    
+    print("Building new vector store...")
+    
+    # 加载文档
+    loader = DocumentLoader()
+    documents = loader.load_documents()
+    if not documents:
+        print("No documents found to build vector store")
+        return Retriever()
+    
+    # 分割文档
+    splitter = TextSplitter()
+    chunks = splitter.split_documents(documents)
+    print(f"Split {len(documents)} documents into {len(chunks)} chunks")
+    
+    # 生成嵌入
+    embedding_model = EmbeddingModel()
+    texts = [chunk["text"] for chunk in chunks]
+    embeddings = embedding_model.embed_texts(texts)
+    
+    # 添加到向量存储
+    vector_store.add_chunks(chunks, embeddings)
+    
+    print("Vector store built successfully")
+    return Retriever()
+=== END ===
+
+=== FILE: RAG\document_loader.py ===
+import os
+from pathlib import Path
+from config import DOCUMENTS_DIR, RAG_CONFIG
+import PyPDF2
+from docx import Document
+import markdown
+
+class DocumentLoader:
+    def __init__(self):
+        self.extensions = RAG_CONFIG["document_loader"]["extensions"]
+        self.documents_dir = Path(DOCUMENTS_DIR)
+        self.documents_dir.mkdir(parents=True, exist_ok=True)
+    
+    def load_documents(self):
+        """加载文档目录中的所有支持文档"""
+        documents = []
+        
+        for ext in self.extensions:
+            for file_path in self.documents_dir.glob(f"*{ext}"):
+                content = self._load_file(file_path)
+                if content:
+                    documents.append({
+                        "file_path": str(file_path),
+                        "content": content
+                    })
+        
+        return documents
+    
+    def _load_file(self, file_path):
+        """根据文件类型加载内容"""
+        ext = file_path.suffix.lower()
+        
+        try:
+            if ext == ".txt":
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            
+            elif ext == ".pdf":
+                content = []
+                with open(file_path, 'rb') as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    for page in pdf_reader.pages:
+                        content.append(page.extract_text())
+                return "\n".join(content)
+            
+            elif ext == ".docx":
+                doc = Document(file_path)
+                return "\n".join([para.text for para in doc.paragraphs])
+            
+            elif ext == ".md":
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return markdown.markdown(f.read())
+            
+            else:
+                print(f"Unsupported file type: {ext}")
+                return None
+        except Exception as e:
+            print(f"Error loading {file_path}: {str(e)}")
+            return None
+
+    def add_document(self, file_path):
+        """添加单个文档到存储"""
+        dest_path = self.documents_dir / Path(file_path).name
+        # 实际项目中应处理文件覆盖等问题
+        with open(file_path, 'rb') as src, open(dest_path, 'wb') as dst:
+            dst.write(src.read())
+        return str(dest_path)
+=== END ===
+
+=== FILE: RAG\embeddings.py ===
+import requests
+import numpy as np
+from typing import List
+from config import RAG_CONFIG
+
+class EmbeddingModel:
+    def __init__(self):
+        config = RAG_CONFIG["embeddings"]
+        self.model_type = config["model_type"]
+        self.model_name = config["model_name"]
+    
+    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """将文本列表转换为嵌入向量"""
+        if self.model_type == "ollama":
+            return self._embed_with_ollama(texts)
+        elif self.model_type == "huggingface":
+            return self._embed_with_huggingface(texts)
+        else:
+            raise ValueError(f"Unsupported model type: {self.model_type}")
+    
+    def _embed_with_ollama(self, texts: List[str]) -> List[List[float]]:
+        """使用Ollama API生成嵌入"""
+        embeddings = []
+        for text in texts:
+            try:
+                response = requests.post(
+                    "http://localhost:11434/api/embeddings",
+                    json={
+                        "model": self.model_name,
+                        "prompt": text
+                    }
+                )
+                if response.status_code == 200:
+                    embeddings.append(response.json().get("embedding", []))
+                else:
+                    print(f"Error embedding text: {response.text}")
+                    embeddings.append([])
+            except Exception as e:
+                print(f"Ollama embedding error: {str(e)}")
+                embeddings.append([])
+        
+        return embeddings
+    
+    def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
+        """使用Hugging Face模型生成嵌入（占位符）"""
+        # 实际项目中应实现Hugging Face嵌入
+        print("Hugging Face embeddings not implemented yet")
+        return [np.random.rand(768).tolist() for _ in texts]
+=== END ===
+
+=== FILE: RAG\retriever.py ===
+from .embeddings import EmbeddingModel
+from .vector_store import VectorStore
+from config import RAG_CONFIG
+from pathlib import Path
+class Retriever:
+    def __init__(self):
+        self.embedding_model = EmbeddingModel()
+        self.vector_store = VectorStore()
+        self.vector_store.load_index()
+        self.top_k = RAG_CONFIG["retriever"]["top_k"]
+        self.score_threshold = RAG_CONFIG["retriever"]["score_threshold"]
+    
+    def retrieve(self, query: str) -> str:
+        """检索与查询相关的上下文"""
+        # 生成查询嵌入
+        query_embedding = self.embedding_model.embed_texts([query])
+        if not query_embedding or not query_embedding[0]:
+            return ""
+        
+        # 执行相似度搜索
+        results = self.vector_store.similarity_search(
+            query_embedding[0], 
+            top_k=self.top_k
+        )
+        
+        # 构建上下文
+        context = []
+        for score, chunk_id, chunk_data in results:
+            if score >= self.score_threshold:
+                context.append({
+                    "text": chunk_data["text"],
+                    "source": chunk_data["source"],
+                    "score": round(score, 3)
+                })
+        
+        # 格式化上下文
+        return self._format_context(context)
+    
+    def _format_context(self, context_items) -> str:
+        """格式化检索到的上下文"""
+        if not context_items:
+            return ""
+        
+        context_str = "检索到的相关上下文信息：\n\n"
+        for i, item in enumerate(context_items, 1):
+            source_name = Path(item["source"]).name
+            context_str += f"### 上下文片段 {i} (来源: {source_name}, 相似度: {item['score']})\n"
+            context_str += f"{item['text']}\n\n"
+        
+        return context_str.strip()
+=== END ===
+
+=== FILE: RAG\text_splitter.py ===
+import re
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from config import RAG_CONFIG
+from pathlib import Path
+
+class TextSplitter:
+    def __init__(self):
+        config = RAG_CONFIG["text_splitter"]
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=config["chunk_size"],
+            chunk_overlap=config["chunk_overlap"],
+            separators=["\n\n", "\n", "。", "？", "！", "；", " ", ""],
+            keep_separator=True
+        )
+    
+    def split_documents(self, documents):
+        """分割文档为文本块"""
+        chunks = []
+        for doc in documents:
+            content = doc["content"]
+            # 清理多余空白
+            content = re.sub(r'\s+', ' ', content).strip()
+            # 分割文本
+            split_texts = self.splitter.split_text(content)
+            
+            for i, text in enumerate(split_texts):
+                chunks.append({
+                    "text": text,
+                    "source": doc["file_path"],
+                    "chunk_id": f"{Path(doc['file_path']).stem}_{i}"
+                })
+        
+        return chunks
+=== END ===
+
+=== FILE: RAG\vector_store.py ===
+# RAG/vector_store.py
+from annoy import AnnoyIndex
+
+import json
+import numpy as np
+import os
+from config import VECTOR_STORE_DIR, RAG_CONFIG
+from pathlib import Path
+
+class VectorStore:
+    def __init__(self):
+        self.store_dir = Path(VECTOR_STORE_DIR)
+        self.store_dir.mkdir(parents=True, exist_ok=True)
+        config = RAG_CONFIG["vector_store"]
+        self.store_type = config["type"]  # 保留配置字段（可选）
+        self.index_name = config["index_name"]
+        self.index_path = self.store_dir / f"{self.index_name}.ann"  # 改为 .ann 后缀
+        self.metadata_path = self.store_dir / f"{self.index_name}_metadata.json"
+        self.index = None
+        self.metadata = {}
+        self.dim = 768  # 假设嵌入维度为 768（根据实际模型调整）
+        self.distance_metric = "angular"  # 余弦相似度（Annoy 支持）
+    def load_index(self):
+        if self.index_path.exists():
+            self.index = AnnoyIndex(self.dim, self.distance_metric)
+            self.index.load(str(self.index_path))
+            if self.metadata_path.exists():
+                with open(self.metadata_path, 'r', encoding='utf-8') as f:
+                    self.metadata = json.load(f)
+            print(f"Loaded Annoy index with {len(self.metadata)} chunks")
+        else:
+            self.index = AnnoyIndex(self.dim, self.distance_metric)
+            print("No existing Annoy index found")
+    def add_chunks(self, chunks, embeddings):
+        if not embeddings:
+            return
+        # 确保嵌入是 numpy 数组
+        embeddings = np.array(embeddings).astype('float32')
+        # 添加向量到 Annoy 索引
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            chunk_id = chunk["chunk_id"]
+            self.index.add_item(i, embedding.tolist())
+            self.metadata[chunk_id] = {
+                "text": chunk["text"],
+                "source": chunk["source"],
+                "embedding": embedding.tolist()
+            }
+        # 构建索引（n_trees 控制树的数量，影响精度和速度）
+        self.index.build(10)  # 默认 10 棵树
+        self.save_index()
+    def similarity_search(self, query_embedding, top_k=5):
+        query_embedding = np.array([query_embedding]).astype('float32')
+        # 获取最近邻（返回索引列表）
+        indices = self.index.get_nns_by_vector(query_embedding[0], top_k, include_distances=True)
+        results = []
+        for idx, distance in zip(indices[::2], indices[1::2]):
+            if idx < len(self.metadata):
+                chunk_ids = list(self.metadata.keys())
+                chunk_id = chunk_ids[idx]
+                chunk_data = self.metadata[chunk_id]
+                # Annoy 的余弦相似度范围是 [0, 1]，0 表示完全不相似
+                score = 1 - distance  # 转换为相似度得分
+                results.append((score, chunk_id, chunk_data))
+        return sorted(results, key=lambda x: x[0], reverse=True)
+    def save_index(self):
+        self.index.save(str(self.index_path))
+        with open(self.metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(self.metadata, f, ensure_ascii=False, indent=2)
+        print(f"Saved Annoy index with {len(self.metadata)} chunks")
+=== END ===
+
+=== FILE: backend\ai_service.py ===
+import requests
+from typing import Dict, Any, Optional
+from RAG import initialize_rag_system
+
+class AIService:
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.model_type = config.get('model_type', 'ollama')
+        self.model_name = config.get('model_name', 'qwen:7b')
+        self.rag_retriever = initialize_rag_system()
+        
+    def generate_response(self, prompt: str, use_rag: bool = False) -> str:
+        """生成AI回复，支持RAG"""
+        rag_context = None
+        if use_rag:
+            rag_context = self.rag_retriever.retrieve(prompt)
+        
+        full_prompt = self._build_prompt(prompt, rag_context)
+        
+        if self.model_type == 'ollama':
+            return self._call_ollama(full_prompt)
+        elif self.model_type == 'openai':
+            return self._call_openai(full_prompt)
+        # 可扩展其他API
+        
+    def _build_prompt(self, prompt: str, context: Optional[str]) -> str:
+        """构建最终提示词，整合RAG内容"""
+        if context:
+            return (
+                f"<|im_start|>system\n"
+                f"你是一个AI助手，请基于以下上下文信息回答问题：\n\n"
+                f"{context}\n"
+                f"<|im_end|>\n"
+                f"<|im_start|>user\n"
+                f"{prompt}\n"
+                f"<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
+        return (
+            f"<|im_start|>user\n"
+            f"{prompt}\n"
+            f"<|im_end|>\n"
+            f"<|im_start|>assistant\n"
+        )
+    
+    def _call_ollama(self, prompt: str) -> str:
+        """调用本地Ollama服务"""
+        try:
+            url = "http://localhost:11434/api/generate"
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": False
+            }
+            response = requests.post(url, json=payload, timeout=300)
+            return response.json().get("response", "")
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    def _call_openai(self, prompt: str) -> str:
+        """调用OpenAI API（预留）"""
+        # 实际使用时替换为真实API调用
+        return f"OpenAI response to: {prompt}"
+    
+    # backend/ai_service.py
+    def update_config(self, new_config: Dict[str, Any]):
+        self.config.update(new_config)
+        self.model_type = self.config.get('model_type', self.model_type)
+        self.model_name = self.config.get('model_name', self.model_name)
+        # 重新初始化 Retriever
+        self.rag_retriever = initialize_rag_system()
+=== END ===
+
+=== FILE: backend\main.py ===
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from ai_service import AIService
+import os
+from pathlib import Path
+from RAG.document_loader import DocumentLoader
+from fastapi.responses import FileResponse
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+app = FastAPI()
+# 添加静态文件服务
+    
+app.mount("/static", StaticFiles(directory=BASE_DIR / "frontend"), name="static")
+
+
+# 允许跨域
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 初始化服务
+ai_config = {"model_type": "ollama", "model_name": "qwen:7b"}
+ai_service = AIService(ai_config)
+
+class ChatRequest(BaseModel):
+    message: str
+    use_rag: bool = False
+
+@app.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    try:
+        response = ai_service.generate_response(request.message, request.use_rag)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update_config")
+async def update_config(new_config: dict):
+    ai_service.update_config(new_config)
+    return {"status": "config updated"}
+
+
+# 修改上传文档端点
+
+@app.post("/upload_document")
+async def upload_document(file: UploadFile = File(...)):
+    try:
+        documents_dir = BASE_DIR / "data" / "documents"
+        documents_dir.mkdir(parents=True, exist_ok=True)
+        file_path = documents_dir / file.filename
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        # 重新加载向量存储
+        ai_service.rag_retriever.vector_store.load_index()
+        return {"status": "success", "file_path": str(file_path)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 添加前端服务
+@app.get("/")
+async def serve_frontend():
+    return FileResponse(BASE_DIR / "frontend" / "index.html")
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+     
+=== END ===
+
+=== FILE: backend\rag.py ===
+
+=== END ===
+
+=== FILE: backend\requirements.txt ===
+# requirements.txt
+fastapi>=0.68.0
+uvicorn>=0.18.3
+requests>=2.31.0
+numpy>=1.24.3
+PyPDF2>=3.0.1
+python-docx>=0.8.11
+markdown>=3.4.1
+langchain-text-splitters>=0.0.1
+annoy>=1.17.0  # 可选gpu版本或cpu版本，pip安装无效就用conda
+=== END ===
+
+=== FILE: frontend\index.html ===
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Module</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <div id="chat-history" class="chat-history"></div>
+        
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+            <label>
+                <input type="checkbox" id="use-rag"> Use RAG
+            </label>
+        </div>
+        <!-- 在配置面板下方添加 -->
+<div class="document-upload">
+    <h3>上传文档</h3>
+    <input type="file" id="document-file">
+    <button onclick="uploadDocument()">上传</button>
+    <div id="upload-status"></div>
+</div>
+        <div class="config-panel">
+            <h3>Configuration</h3>
+            <select id="model-type">
+                <option value="ollama">Ollama (Local)</option>
+                <option value="openai">OpenAI API</option>
+            </select>
+            <input type="text" id="model-name" placeholder="Model name" value="llama3">
+            <button onclick="updateConfig()">Update Config</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+=== END ===
+
+=== FILE: frontend\script.js ===
+let chatHistory = [];
+
+async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const message = input.value.trim();
+    const useRag = document.getElementById('use-rag').checked;
+    
+    if (!message) return;
+    
+    // 添加用户消息
+    addMessage('user', message);
+    input.value = '';
+    
+    try {
+        // 发送到后端
+        const response = await fetch('http://localhost:8000/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                use_rag: useRag
+            })
+        });
+        
+        const data = await response.json();
+        addMessage('ai', data.response);
+    } catch (error) {
+        addMessage('ai', `Error: ${error.message}`);
+    }
+}
+
+async function updateConfig() {
+    const modelType = document.getElementById('model-type').value;
+    const modelName = document.getElementById('model-name').value;
+    
+    try {
+        await fetch('http://localhost:8000/update_config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model_type: modelType,
+                model_name: modelName
+            })
+        });
+        alert('Configuration updated successfully!');
+    } catch (error) {
+        alert(`Update failed: ${error.message}`);
+    }
+}
+async function uploadDocument() {
+    const fileInput = document.getElementById('document-file');
+    const file = fileInput.files[0];
+    const statusDiv = document.getElementById('upload-status');
+    
+    if (!file) {
+        statusDiv.textContent = "请选择文件";
+        return;
+    }
+    
+    statusDiv.textContent = "上传中...";
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('http://localhost:8000/upload_document', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (data.status === 'success') {
+            statusDiv.textContent = `上传成功: ${data.file_path}`;
+            // 清空文件输入
+            fileInput.value = '';
+        } else {
+            statusDiv.textContent = `上传失败: ${data.detail || '未知错误'}`;
+        }
+    } catch (error) {
+        statusDiv.textContent = `上传错误: ${error.message}`;
+    }
+}
+
+// 添加页面加载事件
+document.addEventListener('DOMContentLoaded', () => {
+    // 初始加载完成后滚动到底部
+    const chatHistory = document.getElementById('chat-history');
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+});
+function addMessage(role, content) {
+    const chatHistoryElement = document.getElementById('chat-history');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}-message`;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'ai-message-content';
+    
+    // 安全渲染Markdown
+    if (role === 'ai') {
+        const sanitized = DOMPurify.sanitize(marked.parse(content));
+        contentDiv.innerHTML = sanitized;
+    } else {
+        contentDiv.textContent = content;
+    }
+    
+    messageDiv.appendChild(contentDiv);
+    chatHistoryElement.appendChild(messageDiv);
+    
+    // 滚动到底部
+    chatHistoryElement.scrollTop = chatHistoryElement.scrollHeight;
+    
+    // 保存历史
+    chatHistory.push({ role, content });
+}
+
+// 输入框回车发送
+document.getElementById('user-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+});
+=== END ===
+
+=== FILE: frontend\style.css ===
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.chat-container {
+    width: 100%;
+    max-width: 800px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+}
+.document-upload {
+    padding: 15px;
+    background: #f0f0f0;
+    border-top: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.document-upload h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #444;
+}
+
+.document-upload input[type="file"] {
+    padding: 8px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.chat-history {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 15px;
+    border-radius: 12px;
+    line-height: 1.6;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.user-message {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #4e8cff, #3a75e0);
+    color: white;
+    border-bottom-right-radius: 5px;
+}
+
+.ai-message {
+    align-self: flex-start;
+    background-color: #fafafa;
+    color: #333;
+    border-bottom-left-radius: 5px;
+}
+
+.ai-message-content {
+    overflow-wrap: break-word;
+}
+
+/* Markdown样式增强 */
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid #eee;
+    color: #2c3e50;
+}
+
+.markdown-content h1 {
+    font-size: 1.8em;
+}
+
+.markdown-content h2 {
+    font-size: 1.5em;
+}
+
+.markdown-content h3 {
+    font-size: 1.3em;
+}
+
+.markdown-content p {
+    margin: 0.8em 0;
+}
+
+.markdown-content ul, .markdown-content ol {
+    margin: 0.8em 0;
+    padding-left: 1.5em;
+}
+
+.markdown-content li {
+    margin: 0.4em 0;
+}
+
+.markdown-content blockquote {
+    margin: 1em 0;
+    padding: 0.8em 1em;
+    background-color: #f8f9fa;
+    border-left: 4px solid #4e8cff;
+    color: #555;
+    border-radius: 0 8px 8px 0;
+}
+
+/* 代码块样式 - 淡蓝色背景 */
+.markdown-content pre {
+    background-color: #e6f7ff; /* 淡蓝色背景 */
+    padding: 15px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1.2em 0;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+    border: 1px solid #c0e6ff;
+}
+
+.markdown-content code {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    background-color: rgba(230, 247, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #d63384;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: #333;
+}
+
+/* 表格样式 */
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2em 0;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.markdown-content th, .markdown-content td {
+    padding: 10px 15px;
+    text-align: left;
+    border: 1px solid #e1e4e8;
+}
+
+.markdown-content th {
+    background-color: #f6f8fa;
+    font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
+/* 流程图/图表容器样式 */
+.markdown-content .mermaid, 
+.markdown-content .flowchart, 
+.markdown-content .graphviz {
+    background-color: #a5c0cd; /* 淡蓝色背景 */
+    padding: 15px;
+    border-radius: 8px;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    text-align: center;
+    border: 1px solid #c0e6ff;
+}
+
+/* 水平线样式 */
+.markdown-content hr {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(to right, rgba(0,0,0,0), rgba(78,140,255,0.5), rgba(0,0,0,0));
+    margin: 1.5em 0;
+}
+
+/* 链接样式 */
+.markdown-content a {
+    color: #1e6bb8;
+    text-decoration: none;
+    border-bottom: 1px dashed #4e8cff;
+    transition: all 0.2s;
+}
+
+.markdown-content a:hover {
+    color: #0d4a9e;
+    border-bottom: 1px solid #0d4a9e;
+}
+
+/* 键盘标签样式 */
+.markdown-content kbd {
+    background-color: #f6f8fa;
+    border: 1px solid #d1d5da;
+    border-radius: 4px;
+    box-shadow: inset 0 -1px 0 #d1d5da;
+    color: #444d56;
+    display: inline-block;
+    font-family: monospace;
+    font-size: 0.9em;
+    line-height: 1;
+    padding: 3px 5px;
+    vertical-align: middle;
+}
+
+/* 提示框样式 */
+.markdown-content .tip, 
+.markdown-content .note, 
+.markdown-content .warning {
+    padding: 12px 15px;
+    margin: 1.2em 0;
+    border-radius: 8px;
+    border-left: 4px solid;
+}
+
+.markdown-content .tip {
+    background-color: #e6f7ff;
+    border-color: #4e8cff;
+}
+
+.markdown-content .note {
+    background-color: #fff8e6;
+    border-color: #ffc53d;
+}
+
+.markdown-content .warning {
+    background-color: #ffebee;
+    border-color: #f44336;
+}
+
+.input-area {
+    display: flex;
+    padding: 15px;
+    background: #f9f9f9;
+    border-top: 1px solid #eee;
+    gap: 10px;
+    align-items: center;
+}
+
+.input-area input {
+    flex: 1;
+    padding: 12px 18px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.input-area input:focus {
+    border-color: #4e8cff;
+    box-shadow: 0 0 0 2px rgba(78, 140, 255, 0.2);
+}
+
+.input-area button {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #4e8cff, #3a75e0);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.input-area button:hover {
+    background: linear-gradient(135deg, #3a75e0, #2a65d0);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.config-panel {
+    padding: 15px;
+    background: #f0f0f0;
+    border-top: 1px solid #ddd;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.config-panel h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #444;
+}
+
+.config-panel select, .config-panel input {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+    font-size: 14px;
+}
+
+.config-panel button {
+    padding: 8px 15px;
+    background: #5a6268;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.config-panel button:hover {
+    background: #484e53;
+}
+
+/* 滚动条美化 */
+.chat-history::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-history::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.chat-history::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.chat-history::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+=== END ===
+

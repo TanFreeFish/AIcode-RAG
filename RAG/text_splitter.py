@@ -1,6 +1,7 @@
 import re
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from config import RAG_CONFIG
+from pathlib import Path
 
 class TextSplitter:
     def __init__(self):

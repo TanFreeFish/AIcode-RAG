@@ -18,7 +18,27 @@ body {
     flex-direction: column;
     height: 90vh;
 }
+.document-upload {
+    padding: 15px;
+    background: #f0f0f0;
+    border-top: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
+.document-upload h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #444;
+}
+
+.document-upload input[type="file"] {
+    padding: 8px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
 .chat-history {
     flex: 1;
     padding: 20px;

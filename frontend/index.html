@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chat Module</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
 </head>
@@ -19,7 +19,13 @@
                 <input type="checkbox" id="use-rag"> Use RAG
             </label>
         </div>
-        
+        <!-- 在配置面板下方添加 -->
+<div class="document-upload">
+    <h3>上传文档</h3>
+    <input type="file" id="document-file">
+    <button onclick="uploadDocument()">上传</button>
+    <div id="upload-status"></div>
+</div>
         <div class="config-panel">
             <h3>Configuration</h3>
             <select id="model-type">
@@ -31,6 +37,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>

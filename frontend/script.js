@@ -51,7 +51,46 @@ async function updateConfig() {
         alert(`Update failed: ${error.message}`);
     }
 }
+async function uploadDocument() {
+    const fileInput = document.getElementById('document-file');
+    const file = fileInput.files[0];
+    const statusDiv = document.getElementById('upload-status');
+    
+    if (!file) {
+        statusDiv.textContent = "请选择文件";
+        return;
+    }
+    
+    statusDiv.textContent = "上传中...";
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('http://localhost:8000/upload_document', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (data.status === 'success') {
+            statusDiv.textContent = `上传成功: ${data.file_path}`;
+            // 清空文件输入
+            fileInput.value = '';
+        } else {
+            statusDiv.textContent = `上传失败: ${data.detail || '未知错误'}`;
+        }
+    } catch (error) {
+        statusDiv.textContent = `上传错误: ${error.message}`;
+    }
+}
 
+// 添加页面加载事件
+document.addEventListener('DOMContentLoaded', () => {
+    // 初始加载完成后滚动到底部
+    const chatHistory = document.getElementById('chat-history');
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+});
 function addMessage(role, content) {
     const chatHistoryElement = document.getElementById('chat-history');
     const messageDiv = document.createElement('div');

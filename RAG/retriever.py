@@ -1,7 +1,7 @@
 from .embeddings import EmbeddingModel
 from .vector_store import VectorStore
 from config import RAG_CONFIG
-
+from pathlib import Path
 class Retriever:
     def __init__(self):
         self.embedding_model = EmbeddingModel()
