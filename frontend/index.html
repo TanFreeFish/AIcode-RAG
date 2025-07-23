@@ -26,13 +26,14 @@
     <button onclick="uploadDocument()">上传</button>
     <div id="upload-status"></div>
 </div>
+
         <div class="config-panel">
             <h3>Configuration</h3>
             <select id="model-type">
                 <option value="ollama">Ollama (Local)</option>
                 <option value="openai">OpenAI API</option>
             </select>
-            <input type="text" id="model-name" placeholder="Model name" value="llama3">
+            <input type="text" id="model-name" placeholder="Model name" value="qwen:7b">
             <button onclick="updateConfig()">Update Config</button>
         </div>
     </div>

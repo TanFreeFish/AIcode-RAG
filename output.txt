@@ -227,14 +227,22 @@ def initialize_rag_system(force_rebuild=False):
         batch_embeddings = embedding_model.embed_texts(batch_texts)
         
         # 检查嵌入是否有效
-        if not batch_embeddings or any(len(emb) == 0 for emb in batch_embeddings):
-            logger.warning(f"Some embeddings were empty in batch starting at index {i}")
+        valid_embeddings = []
+        for emb in batch_embeddings:
+            if emb and len(emb) == embedding_model.dim:  # 修复：检查维度
+                valid_embeddings.append(emb)
+            else:
+                logger.warning(f"Invalid embedding at batch index {i}")
+                valid_embeddings.append([])  # 保持索引对齐
         
-        embeddings.extend(batch_embeddings)
+        embeddings.extend(valid_embeddings)
     
     # 检查嵌入数量是否匹配
     if len(embeddings) != len(chunks):
-        logger.warning(f"Embeddings count ({len(embeddings)}) doesn't match chunks count ({len(chunks)})")
+        logger.warning(f"Embeddings count ({len(embeddings)}) doesn't match chunks count ({len(chunks)}")
+        # 修复：填充缺失的嵌入
+        if len(embeddings) < len(chunks):
+            embeddings.extend([[]] * (len(chunks) - len(embeddings)))
     
     logger.info(f"Embeddings generated in {time.time()-start_time:.2f} seconds")
     
@@ -331,7 +339,8 @@ class EmbeddingModel:
         config = RAG_CONFIG["embeddings"]
         self.model_type = config["model_type"]
         self.model_name = config["model_name"]
-        self.dim = 384 if "minilm" in self.model_name.lower() else 768
+        # 修复：统一维度配置
+        self.dim = config.get("dim", 384)
     
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """将文本列表转换为嵌入向量"""
@@ -349,6 +358,10 @@ class EmbeddingModel:
         """使用Ollama API生成嵌入 - 增强错误处理和重试机制"""
         embeddings = []
         for text in texts:
+            if not text.strip():
+                embeddings.append([])
+                continue
+                
             for attempt in range(3):  # 最多重试3次
                 try:
                     response = requests.post(
@@ -364,12 +377,8 @@ class EmbeddingModel:
                         data = response.json()
                         if "embedding" in data and data["embedding"]:
                             embedding = data["embedding"]
-                            # 检查嵌入向量维度
-                            if len(embedding) == self.dim:
-                                embeddings.append(embedding)
-                                break
-                            else:
-                                logger.warning(f"Embedding dimension mismatch: expected {self.dim}, got {len(embedding)}")
+                            embeddings.append(embedding)
+                            break
                         else:
                             logger.warning(f"Empty embedding for text: {text[:50]}...")
                     else:
@@ -384,42 +393,6 @@ class EmbeddingModel:
                     if attempt == 2:
                         embeddings.append([])
         return embeddings
-    """
-     def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
-        ""使用Hugging Face模型生成嵌入（真实实现）""
-        # 实际实现应该使用transformers库
-        try:
-            from transformers import AutoTokenizer, AutoModel
-            import torch
-            
-            # 加载模型和tokenizer
-            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            model = AutoModel.from_pretrained(self.model_name)
-            
-            # 编码文本
-            inputs = tokenizer(
-                texts, 
-                padding=True, 
-                truncation=True, 
-                return_tensors="pt", 
-                max_length=512
-            )
-            
-            # 生成嵌入
-            with torch.no_grad():
-                outputs = model(**inputs)
-            
-            # 提取[CLS]标记的嵌入作为文本表示
-            embeddings = outputs.last_hidden_state[:, 0, :].numpy().tolist()
-            return embeddings
-        except ImportError:
-            logger.error("Hugging Face transformers library not installed")
-            return [np.random.rand(self.dim).tolist() for _ in texts]
-        except Exception as e:
-            logger.error(f"Hugging Face embedding error: {str(e)}")
-            return [np.random.rand(self.dim).tolist() for _ in texts]
-    """
-   
 === END ===
 
 === FILE: RAG\retriever.py ===
@@ -535,15 +508,13 @@ class VectorStore:
         self.index_path = self.store_dir / f"{self.index_name}.ann"
         self.metadata_path = self.store_dir / f"{self.index_name}_metadata.json"
         self.index = None
-        self.metadata = {}
+        self.metadata = []
+        self.chunk_ids = []  # 新增：存储块ID列表
         
         # 从嵌入配置获取维度
         embedding_config = RAG_CONFIG["embeddings"]
-        if embedding_config["model_name"] == "all-minilm":
-            self.dim = 384  # all-minilm 嵌入维度
-        else:
-            self.dim = 768  # 默认嵌入维度
-            
+        self.dim = embedding_config.get("dim", 384)  # 从配置获取维度
+        
         self.distance_metric = "angular"  # 余弦相似度
         
         # 确保索引对象被正确创建
@@ -563,7 +534,10 @@ class VectorStore:
                 
                 if self.metadata_path.exists():
                     with open(self.metadata_path, 'r', encoding='utf-8') as f:
-                        self.metadata = json.load(f)
+                        metadata = json.load(f)
+                    # 修复：正确加载元数据和块ID
+                    self.metadata = metadata.get("chunks", [])
+                    self.chunk_ids = metadata.get("chunk_ids", [])
                 logger.info(f"Loaded Annoy index with {len(self.metadata)} chunks")
             else:
                 logger.info("No existing index found, creating new index")
@@ -583,22 +557,25 @@ class VectorStore:
             logger.warning("Index is None, creating new index")
             self.index = AnnoyIndex(self.dim, self.distance_metric)
         
-        # 确保嵌入是 numpy 数组
-        embeddings = np.array(embeddings).astype('float32')
+        # 重置元数据和块ID
+        self.metadata = []
+        self.chunk_ids = []
         
         # 添加向量到 Annoy 索引
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-            if embedding.size == 0:
+            if not embedding or len(embedding) == 0:
                 logger.warning(f"Skipping empty embedding for chunk {i}")
                 continue
                 
-            chunk_id = chunk["chunk_id"]
-            self.index.add_item(i, embedding.tolist())
-            self.metadata[chunk_id] = {
+            # 确保嵌入是浮点数列表
+            embedding = [float(x) for x in embedding]
+                
+            self.index.add_item(i, embedding)
+            self.metadata.append({
                 "text": chunk["text"],
-                "source": chunk["source"],
-                "embedding": embedding.tolist()
-            }
+                "source": chunk["source"]
+            })
+            self.chunk_ids.append(chunk["chunk_id"])
         
         # 构建索引
         logger.info("Building index...")
@@ -617,12 +594,13 @@ class VectorStore:
             logger.warning("Empty query embedding")
             return []
             
-        query_embedding = np.array([query_embedding]).astype('float32')
+        # 确保查询嵌入是浮点数列表
+        query_embedding = [float(x) for x in query_embedding]
         
         # 获取最近邻
         try:
             indices, distances = self.index.get_nns_by_vector(
-                query_embedding[0], 
+                query_embedding, 
                 top_k, 
                 include_distances=True
             )
@@ -633,12 +611,11 @@ class VectorStore:
         results = []
         for idx, distance in zip(indices, distances):
             if idx < len(self.metadata):
-                chunk_ids = list(self.metadata.keys())
-                if idx < len(chunk_ids):
-                    chunk_id = chunk_ids[idx]
-                    chunk_data = self.metadata[chunk_id]
-                    score = 1 - distance  # 转换为相似度得分
-                    results.append((score, chunk_id, chunk_data))
+                # 修复：使用索引直接获取元数据
+                chunk_data = self.metadata[idx]
+                # 修复：余弦距离转相似度 (1 - distance)
+                similarity = 1 - distance
+                results.append((similarity, self.chunk_ids[idx], chunk_data))
         
         return sorted(results, key=lambda x: x[0], reverse=True)
 
@@ -648,8 +625,12 @@ class VectorStore:
             return
             
         self.index.save(str(self.index_path))
+        # 修复：正确保存元数据和块ID
         with open(self.metadata_path, 'w', encoding='utf-8') as f:
-            json.dump(self.metadata, f, ensure_ascii=False, indent=2)
+            json.dump({
+                "chunks": self.metadata,
+                "chunk_ids": self.chunk_ids
+            }, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved Annoy index with {len(self.metadata)} chunks")
 === END ===
 

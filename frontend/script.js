@@ -51,6 +51,24 @@ async function updateConfig() {
         alert(`Update failed: ${error.message}`);
     }
 }
+async function buildEmbeddings() {
+    const statusDiv = document.getElementById('embedding-status');
+    statusDiv.textContent = "正在生成向量嵌入...这可能需要一段时间";
+    
+    try {
+        const response = await fetch('http://localhost:8000/build_embeddings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        statusDiv.textContent = data.status;
+    } catch (error) {
+        statusDiv.textContent = `生成失败: ${error.message}`;
+    }
+}
 async function uploadDocument() {
     const fileInput = document.getElementById('document-file');
     const file = fileInput.files[0];

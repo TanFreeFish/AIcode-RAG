@@ -23,11 +23,11 @@ sys.path.append(str(BASE_DIR))
 
 def initialize_rag():
     """初始化RAG系统，强制重建向量索引"""
-    # 删除现有向量库
-    vector_store_dir = BASE_DIR / "data" / "vector_store"
-    if vector_store_dir.exists():
-        logger.info("Removing existing vector store...")
-        shutil.rmtree(vector_store_dir)
+    # # 删除现有向量库
+    # vector_store_dir = BASE_DIR / "data" / "vector_store"
+    # if vector_store_dir.exists():
+    #     logger.info("Removing existing vector store...")
+    #     shutil.rmtree(vector_store_dir)
     
     # 检查Ollama服务是否运行
     logger.info("Checking Ollama service...")
@@ -50,7 +50,7 @@ def initialize_rag():
     # 创建RAG系统
     logger.info("Initializing RAG system...")
     try:
-        rag_retriever = initialize_rag_system(force_rebuild=True)
+        rag_retriever = initialize_rag_system(force_rebuild=False)
         logger.info("RAG system initialized successfully")
         return rag_retriever
     except Exception as e:
