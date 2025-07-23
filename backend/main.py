@@ -70,6 +70,8 @@ async def upload_document(file: UploadFile = File(...)):
         return {"status": "success", "file_path": str(file_path)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
 # backend/main.py (添加新端点)
 @app.post("/build_embeddings")
 async def build_embeddings():
@@ -82,6 +84,8 @@ async def build_embeddings():
         return {"status": "embeddings built successfully"}
     else:
         return {"status": "failed to build embeddings", "error": "no documents or chunks found"}
+    
+    
 # 添加前端服务
 @app.get("/")
 async def serve_frontend():

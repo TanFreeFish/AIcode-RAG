@@ -1,4 +1,3 @@
-# RAG/vector_store.py
 from annoy import AnnoyIndex
 import json
 import numpy as np
@@ -22,11 +21,11 @@ class VectorStore:
         self.metadata_path = self.store_dir / f"{self.index_name}_metadata.json"
         self.index = None
         self.metadata = []
-        self.chunk_ids = []  # 新增：存储块ID列表
+        self.chunk_ids = []  # 存储块ID列表
         
         # 从嵌入配置获取维度
         embedding_config = RAG_CONFIG["embeddings"]
-        self.dim = embedding_config.get("dim", 384)  # 从配置获取维度
+        self.dim = embedding_config.get("dim", 384)
         
         self.distance_metric = "angular"  # 余弦相似度
         
@@ -40,17 +39,16 @@ class VectorStore:
 
     def load_index(self):
         try:
-            if self.index_path.exists():
+            if self.index_path.exists() and self.metadata_path.exists():
                 logger.info(f"Loading existing index from {self.index_path}")
                 self.index = AnnoyIndex(self.dim, self.distance_metric)
                 self.index.load(str(self.index_path))
                 
-                if self.metadata_path.exists():
-                    with open(self.metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                    # 修复：正确加载元数据和块ID
-                    self.metadata = metadata.get("chunks", [])
-                    self.chunk_ids = metadata.get("chunk_ids", [])
+                with open(self.metadata_path, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                # 正确加载元数据和块ID
+                self.metadata = metadata.get("chunks", [])
+                self.chunk_ids = metadata.get("chunk_ids", [])
                 logger.info(f"Loaded Annoy index with {len(self.metadata)} chunks")
             else:
                 logger.info("No existing index found, creating new index")
@@ -74,25 +72,33 @@ class VectorStore:
         self.metadata = []
         self.chunk_ids = []
         
-        # 添加向量到 Annoy 索引
+        # 添加向量到Annoy索引
+        valid_count = 0
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-            if not embedding or len(embedding) == 0:
-                logger.warning(f"Skipping empty embedding for chunk {i}")
+            if not embedding or len(embedding) != self.dim:
+                logger.warning(f"Skipping invalid embedding for chunk {i}")
                 continue
                 
             # 确保嵌入是浮点数列表
-            embedding = [float(x) for x in embedding]
-                
-            self.index.add_item(i, embedding)
-            self.metadata.append({
-                "text": chunk["text"],
-                "source": chunk["source"]
-            })
-            self.chunk_ids.append(chunk["chunk_id"])
+            try:
+                embedding = [float(x) for x in embedding]
+                self.index.add_item(i, embedding)
+                self.metadata.append({
+                    "text": chunk["text"],
+                    "source": chunk["source"]
+                })
+                self.chunk_ids.append(chunk["chunk_id"])
+                valid_count += 1
+            except Exception as e:
+                logger.error(f"Error adding chunk {i}: {str(e)}")
         
+        if valid_count == 0:
+            logger.error("No valid embeddings added to index")
+            return
+            
         # 构建索引
-        logger.info("Building index...")
-        self.index.build(10)  # 默认 10 棵树
+        logger.info(f"Building index with {valid_count} items...")
+        self.index.build(10)  # 默认10棵树
         logger.info("Index built successfully")
         
         # 保存索引
@@ -103,12 +109,16 @@ class VectorStore:
             logger.warning("Index is None, cannot perform search")
             return []
             
-        if not query_embedding:
-            logger.warning("Empty query embedding")
+        if not query_embedding or len(query_embedding) != self.dim:
+            logger.error(f"Invalid query embedding: expected dim={self.dim}, got {len(query_embedding) if query_embedding else 'none'}")
             return []
             
         # 确保查询嵌入是浮点数列表
-        query_embedding = [float(x) for x in query_embedding]
+        try:
+            query_embedding = [float(x) for x in query_embedding]
+        except Exception as e:
+            logger.error(f"Error converting query embedding: {str(e)}")
+            return []
         
         # 获取最近邻
         try:
@@ -123,10 +133,9 @@ class VectorStore:
             
         results = []
         for idx, distance in zip(indices, distances):
-            if idx < len(self.metadata):
-                # 修复：使用索引直接获取元数据
+            if idx < len(self.metadata) and idx < len(self.chunk_ids):
                 chunk_data = self.metadata[idx]
-                # 修复：余弦距离转相似度 (1 - distance)
+                # 余弦距离转相似度 (1 - distance)
                 similarity = 1 - distance
                 results.append((similarity, self.chunk_ids[idx], chunk_data))
         
@@ -138,7 +147,7 @@ class VectorStore:
             return
             
         self.index.save(str(self.index_path))
-        # 修复：正确保存元数据和块ID
+        # 保存元数据和块ID
         with open(self.metadata_path, 'w', encoding='utf-8') as f:
             json.dump({
                 "chunks": self.metadata,

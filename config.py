@@ -13,27 +13,27 @@ RAG_CONFIG = {
         "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md"]
     },
     
-    # 文本分割配置 - 优化参数
+    # 文本分割配置 
     "text_splitter": {
-        "chunk_size": 1500,  # 增大块大小
-        "chunk_overlap": 100  # 减小重叠
+        "chunk_size": 1500, 
+        "chunk_overlap": 100  
     },
     
-    # 嵌入模型配置 - 使用更快的模型
+    # 嵌入模型配置 
     "embeddings": {
         "model_type": "ollama",  # ollama 或 huggingface
-        "model_name": "all-minilm"  # 更轻量级的模型
+        "model_name": "all-minilm"  
     },
     
     # 向量存储配置
     "vector_store": {
-        "type": "annoy",  # 确保与实现一致
+        "type": "annoy",  
         "index_name": "document_index"
     },
     
     # 检索器配置
     "retriever": {
         "top_k": 4,
-        "score_threshold": 0.6
+        "score_threshold": 0.03
     }
 }

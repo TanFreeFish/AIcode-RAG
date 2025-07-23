@@ -1,4 +1,8 @@
 # run_demo.py
+
+"""
+一键启动RAG系统，启动后端服务，打开前端页面
+"""
 import subprocess
 import webbrowser
 import time

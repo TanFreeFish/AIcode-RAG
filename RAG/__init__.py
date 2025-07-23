@@ -14,17 +14,20 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# RAG/__init__.py (修改部分)
 def initialize_rag_system(force_rebuild=False):
-    """初始化RAG系统，仅加载现有向量存储，不自动构建"""
+    """初始化RAG系统"""
     vector_store = VectorStore()
-    if not force_rebuild and vector_store.index_path.exists():
+    if not force_rebuild and vector_store.index_path.exists() and vector_store.metadata_path.exists():
         logger.info("Using existing vector store")
         return Retriever()
     
-    # 不自动构建，仅返回空的检索器
-    logger.info("Vector store not found. Use build_vector_store() to create one.")
-    return Retriever()
+    # 需要构建向量库
+    logger.info("Vector store not found or incomplete. Building new vector store...")
+    if build_vector_store():
+        return Retriever()
+    else:
+        logger.error("Failed to build vector store")
+        return Retriever()
 
 def build_vector_store():
     """手动构建向量存储"""
@@ -69,15 +72,15 @@ def build_vector_store():
                 valid_embeddings.append(emb)
             else:
                 logger.warning(f"Invalid embedding at batch index {i}")
-                valid_embeddings.append([])  # 保持索引对齐
+                valid_embeddings.append([0.0] * embedding_model.dim)  # 使用零向量占位
         
         embeddings.extend(valid_embeddings)
     
     # 检查嵌入数量是否匹配
     if len(embeddings) != len(chunks):
         logger.warning(f"Embeddings count ({len(embeddings)}) doesn't match chunks count ({len(chunks)})")
-        if len(embeddings) < len(chunks):
-            embeddings.extend([[]] * (len(chunks) - len(embeddings)))
+        # 填充缺失的嵌入
+        embeddings.extend([[0.0] * embedding_model.dim] * (len(chunks) - len(embeddings)))
     
     logger.info(f"Embeddings generated in {time.time()-start_time:.2f} seconds")
     

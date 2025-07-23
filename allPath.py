@@ -1,3 +1,7 @@
+"""
+    功能：生成项目目录树结构及代码块内容
+"""
+
 import os
 import json
 from pathlib import Path

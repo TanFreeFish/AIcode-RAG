@@ -4,6 +4,11 @@ from config import DOCUMENTS_DIR, RAG_CONFIG
 import PyPDF2
 from docx import Document
 import markdown
+import re
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class DocumentLoader:
     def __init__(self):
@@ -23,6 +28,7 @@ class DocumentLoader:
                         "file_path": str(file_path),
                         "content": content
                     })
+                    logger.info(f"Loaded document: {file_path.name}")
         
         return documents
     
@@ -40,7 +46,9 @@ class DocumentLoader:
                 with open(file_path, 'rb') as f:
                     pdf_reader = PyPDF2.PdfReader(f)
                     for page in pdf_reader.pages:
-                        content.append(page.extract_text())
+                        text = page.extract_text()
+                        if text:
+                            content.append(text)
                 return "\n".join(content)
             
             elif ext == ".docx":
@@ -52,16 +60,20 @@ class DocumentLoader:
                     return markdown.markdown(f.read())
             
             else:
-                print(f"Unsupported file type: {ext}")
+                logger.warning(f"Unsupported file type: {ext}")
                 return None
         except Exception as e:
-            print(f"Error loading {file_path}: {str(e)}")
+            logger.error(f"Error loading {file_path}: {str(e)}")
             return None
 
     def add_document(self, file_path):
         """添加单个文档到存储"""
         dest_path = self.documents_dir / Path(file_path).name
-        # 实际项目中应处理文件覆盖等问题
-        with open(file_path, 'rb') as src, open(dest_path, 'wb') as dst:
-            dst.write(src.read())
-        return str(dest_path)
+        try:
+            with open(file_path, 'rb') as src, open(dest_path, 'wb') as dst:
+                dst.write(src.read())
+            logger.info(f"Added document: {dest_path}")
+            return str(dest_path)
+        except Exception as e:
+            logger.error(f"Failed to add document: {str(e)}")
+            return None

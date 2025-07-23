@@ -3,6 +3,7 @@ import numpy as np
 from typing import List
 from config import RAG_CONFIG
 import logging
+import time
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -13,8 +14,8 @@ class EmbeddingModel:
         config = RAG_CONFIG["embeddings"]
         self.model_type = config["model_type"]
         self.model_name = config["model_name"]
-        # 修复：统一维度配置
         self.dim = config.get("dim", 384)
+        self.api_url = "http://localhost:11434/api/embeddings"
     
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """将文本列表转换为嵌入向量"""
@@ -39,7 +40,7 @@ class EmbeddingModel:
             for attempt in range(3):  # 最多重试3次
                 try:
                     response = requests.post(
-                        "http://localhost:11434/api/embeddings",
+                        self.api_url,
                         json={
                             "model": self.model_name,
                             "prompt": text
@@ -51,8 +52,14 @@ class EmbeddingModel:
                         data = response.json()
                         if "embedding" in data and data["embedding"]:
                             embedding = data["embedding"]
-                            embeddings.append(embedding)
-                            break
+                            # 检查嵌入维度
+                            if len(embedding) == self.dim:
+                                embeddings.append(embedding)
+                                break
+                            else:
+                                logger.warning(f"Embedding dimension mismatch: expected {self.dim}, got {len(embedding)}")
+                                embeddings.append([])
+                                break
                         else:
                             logger.warning(f"Empty embedding for text: {text[:50]}...")
                     else:
@@ -67,3 +74,7 @@ class EmbeddingModel:
                     if attempt == 2:
                         embeddings.append([])
         return embeddings
+    
+    def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
+        # 实现HuggingFace嵌入逻辑（根据您的需求）
+        return [[] for _ in texts]  # 示例返回
