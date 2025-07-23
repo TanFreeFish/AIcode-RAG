@@ -1,3 +1,4 @@
+# run_demo.py
 import subprocess
 import webbrowser
 import time
@@ -5,6 +6,12 @@ import os
 import shutil
 import sys
 from pathlib import Path
+import requests
+import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = Path(sys.executable).parent
@@ -19,22 +26,46 @@ def initialize_rag():
     # 删除现有向量库
     vector_store_dir = BASE_DIR / "data" / "vector_store"
     if vector_store_dir.exists():
+        logger.info("Removing existing vector store...")
         shutil.rmtree(vector_store_dir)
     
+    # 检查Ollama服务是否运行
+    logger.info("Checking Ollama service...")
+    try:
+        response = requests.get("http://localhost:11434", timeout=5)
+        if response.status_code != 200:
+            logger.error("Ollama service not running. Please start Ollama first.")
+            return None
+    except Exception as e:
+        logger.error(f"Ollama service not running: {str(e)}. Please start Ollama first.")
+        return None
+    
     # 导入RAG初始化函数
-    from RAG import initialize_rag_system
+    try:
+        from RAG import initialize_rag_system
+    except ImportError as e:
+        logger.error(f"Error importing RAG module: {str(e)}")
+        return None
     
     # 创建RAG系统
-    print("Initializing RAG system...")
-    rag_retriever = initialize_rag_system(force_rebuild=True)
-    print("RAG system initialized successfully")
-    return rag_retriever
+    logger.info("Initializing RAG system...")
+    try:
+        rag_retriever = initialize_rag_system(force_rebuild=True)
+        logger.info("RAG system initialized successfully")
+        return rag_retriever
+    except Exception as e:
+        logger.error(f"Error initializing RAG system: {str(e)}")
+        return None
 
 def run_demo():
     # 初始化RAG系统
-    initialize_rag()
+    rag_retriever = initialize_rag()
+    if not rag_retriever:
+        logger.error("Failed to initialize RAG system. Exiting.")
+        return
     
     # 启动后端
+    logger.info("Starting backend server...")
     backend_process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"],
         cwd=BASE_DIR,
@@ -42,20 +73,33 @@ def run_demo():
         stderr=subprocess.PIPE
     )
     
-    print("Starting backend server...")
-    time.sleep(3)  # 等待服务器启动
+    # 等待服务器启动
+    time.sleep(5)
+    
+    # 检查服务器是否启动
+    try:
+        response = requests.get("http://localhost:8000", timeout=5)
+        if response.status_code == 200:
+            logger.info("Backend server started successfully")
+        else:
+            logger.warning(f"Backend returned status code: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Failed to connect to backend: {str(e)}")
+        backend_process.terminate()
+        return
     
     # 打开前端
-    print("Opening chat interface in browser...")
+    logger.info("Opening chat interface in browser...")
     webbrowser.open('http://localhost:8000')
     
-    print("Chat interface opened. Press Ctrl+C to stop.")
+    logger.info("Chat interface opened. Press Ctrl+C to stop.")
     
     try:
         backend_process.wait()
     except KeyboardInterrupt:
+        logger.info("Stopping server...")
         backend_process.terminate()
-        print("\nServer stopped")
+        logger.info("Server stopped")
 
 if __name__ == "__main__":
     run_demo()

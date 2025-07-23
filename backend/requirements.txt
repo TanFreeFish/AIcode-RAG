@@ -7,4 +7,5 @@ PyPDF2>=3.0.1
 python-docx>=0.8.11
 markdown>=3.4.1
 langchain-text-splitters>=0.0.1
-annoy>=1.17.0  # 可选gpu版本或cpu版本，pip安装无效就用conda
+annoy>=1.17.0
+tqdm>=4.66.1  # 添加进度条库

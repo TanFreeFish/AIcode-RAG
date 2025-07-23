@@ -1,5 +1,4 @@
 ├── ./
-│   ├── allPath2.py
 │   ├── config.py
 │   └── run_demo.py
 │   ├── RAG/
@@ -10,143 +9,14 @@
 │   │   ├── text_splitter.py
 │   │   └── vector_store.py
 │   ├── backend/
+│   │   ├── __init__.py
 │   │   ├── ai_service.py
 │   │   ├── main.py
-│   │   ├── rag.py
 │   │   └── requirements.txt
-│   ├── data/
-│   │   ├── data\documents/
-│   │   └── data\vector_store/
 │   └── frontend/
 │       ├── index.html
 │       ├── script.js
 │       └── style.css
-=== FILE: allPath2.py ===
-import os
-import json
-from pathlib import Path
-import argparse
-from typing import List, Dict, Tuple, TextIO
-
-def is_binary_file(file_path: Path) -> bool:
-    """判断文件是否为二进制文件"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            f.read()
-        return False
-    except (UnicodeDecodeError, UnicodeError):
-        return True
-
-def generate_tree(base_path: Path, ignored_dirs: List[str]) -> Tuple[Dict, List]:
-    """
-    生成项目目录树结构
-    :param base_path: 根目录路径
-    :param ignored_dirs: 忽略的文件夹名称列表
-    :return: (目录树结构, 代码块列表)
-    """
-    code_blocks = []
-    tree = _build_tree_node(base_path, base_path, code_blocks, ignored_dirs)
-    return tree, code_blocks
-
-def _build_tree_node(path: Path, base_path: Path, code_blocks: List[Dict], ignored_dirs: List[str]) -> Dict:
-    """递归构建目录树节点"""
-    tree_node = {"name": str(path.relative_to(base_path)), "directories": [], "files": []}
-    
-    for entry in sorted(path.iterdir(), key=lambda e: e.name):
-        if entry.name in ignored_dirs:
-            continue
-            
-        if entry.name in ["output.json", "output.txt"]:
-            continue
-            
-        if entry.is_dir():
-            subtree = _build_tree_node(entry, base_path, code_blocks, ignored_dirs)
-            tree_node["directories"].append(subtree)
-        else:
-            if not is_binary_file(entry):
-                content = entry.read_text(encoding='utf-8')
-                code_blocks.append({
-                    "filename": str(entry.relative_to(base_path)),
-                    "content": content
-                })
-                tree_node["files"].append({
-                    "name": entry.name,
-                    "content_index": len(code_blocks) - 1
-                })
-                
-    return tree_node
-
-def render_tree_to_json(tree: Dict, code_blocks: List, output_file: Path):
-    """将目录树渲染为JSON格式"""
-    data = {
-        "tree": tree,
-        "code_blocks": code_blocks
-    }
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def render_tree_to_txt(tree: Dict, code_blocks: List, output_file: Path):
-    """将目录树渲染为TXT格式"""
-    with open(output_file, 'w', encoding='utf-8') as f:
-        _render_tree_structure(tree, f)
-        _render_file_contents(tree, code_blocks, f)
-
-def _render_tree_structure(node: Dict, f: TextIO, prefix: str = "", last: bool = False):
-    """递归渲染目录结构"""
-    connector = "└──" if last else "├──"
-    f.write(f"{prefix}{connector} {node['name']}/\n")
-    new_prefix = prefix + ("    " if last else "│   ")
-
-    # 写入当前目录下的文件
-    for i, file in enumerate(node['files']):
-        is_last = i == len(node['files']) - 1
-        file_connector = "└──" if is_last else "├──"
-        f.write(f"{new_prefix}{file_connector} {file['name']}\n")
-
-    # 递归写入子目录
-    children = node['directories']
-    for i, child in enumerate(children):
-        is_last = i == len(children) - 1
-        _render_tree_structure(child, f, new_prefix, is_last)
-
-def _render_file_contents(node: Dict, code_blocks: List, f: TextIO):
-    """递归渲染文件内容"""
-    for file in node['files']:
-        idx = file['content_index']
-        filename = code_blocks[idx]['filename']
-        content = code_blocks[idx]['content']
-        f.write(f"=== FILE: {filename} ===\n")
-        f.write(f"{content}\n")
-        f.write("=== END ===\n\n")
-
-    for child in node['directories']:
-        _render_file_contents(child, code_blocks, f)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='生成项目结构及代码块内容')
-    parser.add_argument('--format', '-f', type=str, default='json', choices=['json', 'txt'],
-                        help='输出格式: json 或 txt')
-    args = parser.parse_args()
-
-    base_path = Path('.')
-    output_filename = 'output.json' if args.format == 'json' else 'output.txt'
-    output_file = base_path / output_filename
-
-    ignored_dirs = [
-        ".git", "log", "__pycache__", "node_modules",
-        "allPath.py", "output.json", "output.txt", ".vscode"
-    ]
-
-    tree, code_blocks = generate_tree(base_path, ignored_dirs)
-
-    if args.format == 'json':
-        render_tree_to_json(tree, code_blocks, output_file)
-    else:
-        render_tree_to_txt(tree, code_blocks, output_file)
-
-    print(f"输出已保存到 {output_file}")
-=== END ===
-
 === FILE: config.py ===
 import os
 
@@ -163,21 +33,21 @@ RAG_CONFIG = {
         "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md"]
     },
     
-    # 文本分割配置
+    # 文本分割配置 - 优化参数
     "text_splitter": {
-        "chunk_size": 1000,
-        "chunk_overlap": 200
+        "chunk_size": 1500,  # 增大块大小
+        "chunk_overlap": 100  # 减小重叠
     },
     
-    # 嵌入模型配置
+    # 嵌入模型配置 - 使用更快的模型
     "embeddings": {
         "model_type": "ollama",  # ollama 或 huggingface
-        "model_name": "nomic-embed-text"
+        "model_name": "all-minilm"  # 更轻量级的模型
     },
     
     # 向量存储配置
     "vector_store": {
-        "type": "faiss",  # faiss 或 chroma
+        "type": "annoy",  # 确保与实现一致
         "index_name": "document_index"
     },
     
@@ -190,62 +60,115 @@ RAG_CONFIG = {
 === END ===
 
 === FILE: run_demo.py ===
+# run_demo.py
 import subprocess
 import webbrowser
 import time
 import os
 import shutil
+import sys
 from pathlib import Path
+import requests
+import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+# 添加项目根目录到Python路径
+sys.path.append(str(BASE_DIR))
 
 def initialize_rag():
     """初始化RAG系统，强制重建向量索引"""
     # 删除现有向量库
-    vector_store_dir = Path("data/vector_store")
+    vector_store_dir = BASE_DIR / "data" / "vector_store"
     if vector_store_dir.exists():
+        logger.info("Removing existing vector store...")
         shutil.rmtree(vector_store_dir)
     
+    # 检查Ollama服务是否运行
+    logger.info("Checking Ollama service...")
+    try:
+        response = requests.get("http://localhost:11434", timeout=5)
+        if response.status_code != 200:
+            logger.error("Ollama service not running. Please start Ollama first.")
+            return None
+    except Exception as e:
+        logger.error(f"Ollama service not running: {str(e)}. Please start Ollama first.")
+        return None
+    
     # 导入RAG初始化函数
-    from RAG import initialize_rag_system
+    try:
+        from RAG import initialize_rag_system
+    except ImportError as e:
+        logger.error(f"Error importing RAG module: {str(e)}")
+        return None
     
     # 创建RAG系统
-    print("Initializing RAG system...")
-    rag_retriever = initialize_rag_system(force_rebuild=True)
-    print("RAG system initialized successfully")
-    return rag_retriever
+    logger.info("Initializing RAG system...")
+    try:
+        rag_retriever = initialize_rag_system(force_rebuild=True)
+        logger.info("RAG system initialized successfully")
+        return rag_retriever
+    except Exception as e:
+        logger.error(f"Error initializing RAG system: {str(e)}")
+        return None
 
 def run_demo():
     # 初始化RAG系统
-    initialize_rag()
+    rag_retriever = initialize_rag()
+    if not rag_retriever:
+        logger.error("Failed to initialize RAG system. Exiting.")
+        return
     
     # 启动后端
-    backend_dir = os.path.join(os.path.dirname(__file__), 'backend')
+    logger.info("Starting backend server...")
     backend_process = subprocess.Popen(
-        ['uvicorn', 'main:app', '--reload'],
-        cwd=backend_dir,
+        [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"],
+        cwd=BASE_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
     
-    print("Starting backend server...")
-    time.sleep(3)  # 等待服务器启动
+    # 等待服务器启动
+    time.sleep(5)
+    
+    # 检查服务器是否启动
+    try:
+        response = requests.get("http://localhost:8000", timeout=5)
+        if response.status_code == 200:
+            logger.info("Backend server started successfully")
+        else:
+            logger.warning(f"Backend returned status code: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Failed to connect to backend: {str(e)}")
+        backend_process.terminate()
+        return
     
     # 打开前端
-    print("Opening chat interface in browser...")
+    logger.info("Opening chat interface in browser...")
     webbrowser.open('http://localhost:8000')
     
-    print("Chat interface opened. Press Ctrl+C to stop.")
+    logger.info("Chat interface opened. Press Ctrl+C to stop.")
     
     try:
         backend_process.wait()
     except KeyboardInterrupt:
+        logger.info("Stopping server...")
         backend_process.terminate()
-        print("\nServer stopped")
+        logger.info("Server stopped")
 
 if __name__ == "__main__":
     run_demo()
 === END ===
 
 === FILE: RAG\__init__.py ===
+# RAG/__init__.py
 from .document_loader import DocumentLoader
 from .text_splitter import TextSplitter
 from .embeddings import EmbeddingModel
@@ -253,38 +176,72 @@ from .vector_store import VectorStore
 from .retriever import Retriever
 from config import DOCUMENTS_DIR, VECTOR_STORE_DIR
 import os
+import time
+from tqdm import tqdm
+import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def initialize_rag_system(force_rebuild=False):
     """初始化RAG系统"""
     # 检查向量存储是否存在
     vector_store = VectorStore()
     if not force_rebuild and vector_store.index_path.exists():
-        print("Using existing vector store")
+        logger.info("Using existing vector store")
         return Retriever()
     
-    print("Building new vector store...")
+    logger.info("Building new vector store...")
     
     # 加载文档
     loader = DocumentLoader()
     documents = loader.load_documents()
     if not documents:
-        print("No documents found to build vector store")
+        logger.warning("No documents found to build vector store")
         return Retriever()
     
     # 分割文档
     splitter = TextSplitter()
     chunks = splitter.split_documents(documents)
-    print(f"Split {len(documents)} documents into {len(chunks)} chunks")
+    logger.info(f"Split {len(documents)} documents into {len(chunks)} chunks")
     
-    # 生成嵌入
+    # 检查是否有文本块
+    if not chunks:
+        logger.warning("No text chunks created from documents")
+        return Retriever()
+    
+    # 生成嵌入 - 添加批处理和进度条
     embedding_model = EmbeddingModel()
     texts = [chunk["text"] for chunk in chunks]
-    embeddings = embedding_model.embed_texts(texts)
+    
+    # 分批处理嵌入生成
+    batch_size = 32
+    embeddings = []
+    logger.info("Generating embeddings...")
+    start_time = time.time()
+    
+    # 使用tqdm显示进度条
+    for i in tqdm(range(0, len(texts), batch_size), desc="Embedding chunks"):
+        batch_texts = texts[i:i+batch_size]
+        batch_embeddings = embedding_model.embed_texts(batch_texts)
+        
+        # 检查嵌入是否有效
+        if not batch_embeddings or any(len(emb) == 0 for emb in batch_embeddings):
+            logger.warning(f"Some embeddings were empty in batch starting at index {i}")
+        
+        embeddings.extend(batch_embeddings)
+    
+    # 检查嵌入数量是否匹配
+    if len(embeddings) != len(chunks):
+        logger.warning(f"Embeddings count ({len(embeddings)}) doesn't match chunks count ({len(chunks)})")
+    
+    logger.info(f"Embeddings generated in {time.time()-start_time:.2f} seconds")
     
     # 添加到向量存储
     vector_store.add_chunks(chunks, embeddings)
     
-    print("Vector store built successfully")
+    logger.info("Vector store built successfully")
     return Retriever()
 === END ===
 
@@ -363,15 +320,24 @@ import requests
 import numpy as np
 from typing import List
 from config import RAG_CONFIG
+import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class EmbeddingModel:
     def __init__(self):
         config = RAG_CONFIG["embeddings"]
         self.model_type = config["model_type"]
         self.model_name = config["model_name"]
+        self.dim = 384 if "minilm" in self.model_name.lower() else 768
     
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """将文本列表转换为嵌入向量"""
+        if not texts:
+            return []
+            
         if self.model_type == "ollama":
             return self._embed_with_ollama(texts)
         elif self.model_type == "huggingface":
@@ -380,33 +346,80 @@ class EmbeddingModel:
             raise ValueError(f"Unsupported model type: {self.model_type}")
     
     def _embed_with_ollama(self, texts: List[str]) -> List[List[float]]:
-        """使用Ollama API生成嵌入"""
+        """使用Ollama API生成嵌入 - 增强错误处理和重试机制"""
         embeddings = []
         for text in texts:
-            try:
-                response = requests.post(
-                    "http://localhost:11434/api/embeddings",
-                    json={
-                        "model": self.model_name,
-                        "prompt": text
-                    }
-                )
-                if response.status_code == 200:
-                    embeddings.append(response.json().get("embedding", []))
-                else:
-                    print(f"Error embedding text: {response.text}")
-                    embeddings.append([])
-            except Exception as e:
-                print(f"Ollama embedding error: {str(e)}")
-                embeddings.append([])
-        
+            for attempt in range(3):  # 最多重试3次
+                try:
+                    response = requests.post(
+                        "http://localhost:11434/api/embeddings",
+                        json={
+                            "model": self.model_name,
+                            "prompt": text
+                        },
+                        timeout=30
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if "embedding" in data and data["embedding"]:
+                            embedding = data["embedding"]
+                            # 检查嵌入向量维度
+                            if len(embedding) == self.dim:
+                                embeddings.append(embedding)
+                                break
+                            else:
+                                logger.warning(f"Embedding dimension mismatch: expected {self.dim}, got {len(embedding)}")
+                        else:
+                            logger.warning(f"Empty embedding for text: {text[:50]}...")
+                    else:
+                        logger.error(f"Error embedding text: {response.status_code} - {response.text}")
+                    
+                    # 最后一次尝试仍然失败
+                    if attempt == 2:
+                        logger.error(f"Failed to generate embedding after 3 attempts for text: {text[:50]}...")
+                        embeddings.append([])
+                except Exception as e:
+                    logger.error(f"Ollama embedding error: {str(e)}")
+                    if attempt == 2:
+                        embeddings.append([])
         return embeddings
-    
-    def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
-        """使用Hugging Face模型生成嵌入（占位符）"""
-        # 实际项目中应实现Hugging Face嵌入
-        print("Hugging Face embeddings not implemented yet")
-        return [np.random.rand(768).tolist() for _ in texts]
+    """
+     def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
+        ""使用Hugging Face模型生成嵌入（真实实现）""
+        # 实际实现应该使用transformers库
+        try:
+            from transformers import AutoTokenizer, AutoModel
+            import torch
+            
+            # 加载模型和tokenizer
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            model = AutoModel.from_pretrained(self.model_name)
+            
+            # 编码文本
+            inputs = tokenizer(
+                texts, 
+                padding=True, 
+                truncation=True, 
+                return_tensors="pt", 
+                max_length=512
+            )
+            
+            # 生成嵌入
+            with torch.no_grad():
+                outputs = model(**inputs)
+            
+            # 提取[CLS]标记的嵌入作为文本表示
+            embeddings = outputs.last_hidden_state[:, 0, :].numpy().tolist()
+            return embeddings
+        except ImportError:
+            logger.error("Hugging Face transformers library not installed")
+            return [np.random.rand(self.dim).tolist() for _ in texts]
+        except Exception as e:
+            logger.error(f"Hugging Face embedding error: {str(e)}")
+            return [np.random.rand(self.dim).tolist() for _ in texts]
+    """
+   
 === END ===
 
 === FILE: RAG\retriever.py ===
@@ -501,44 +514,84 @@ class TextSplitter:
 === FILE: RAG\vector_store.py ===
 # RAG/vector_store.py
 from annoy import AnnoyIndex
-
 import json
 import numpy as np
 import os
-from config import VECTOR_STORE_DIR, RAG_CONFIG
 from pathlib import Path
+from config import VECTOR_STORE_DIR, RAG_CONFIG
+import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class VectorStore:
     def __init__(self):
         self.store_dir = Path(VECTOR_STORE_DIR)
         self.store_dir.mkdir(parents=True, exist_ok=True)
         config = RAG_CONFIG["vector_store"]
-        self.store_type = config["type"]  # 保留配置字段（可选）
+        self.store_type = config["type"]
         self.index_name = config["index_name"]
-        self.index_path = self.store_dir / f"{self.index_name}.ann"  # 改为 .ann 后缀
+        self.index_path = self.store_dir / f"{self.index_name}.ann"
         self.metadata_path = self.store_dir / f"{self.index_name}_metadata.json"
         self.index = None
         self.metadata = {}
-        self.dim = 768  # 假设嵌入维度为 768（根据实际模型调整）
-        self.distance_metric = "angular"  # 余弦相似度（Annoy 支持）
-    def load_index(self):
-        if self.index_path.exists():
-            self.index = AnnoyIndex(self.dim, self.distance_metric)
-            self.index.load(str(self.index_path))
-            if self.metadata_path.exists():
-                with open(self.metadata_path, 'r', encoding='utf-8') as f:
-                    self.metadata = json.load(f)
-            print(f"Loaded Annoy index with {len(self.metadata)} chunks")
+        
+        # 从嵌入配置获取维度
+        embedding_config = RAG_CONFIG["embeddings"]
+        if embedding_config["model_name"] == "all-minilm":
+            self.dim = 384  # all-minilm 嵌入维度
         else:
+            self.dim = 768  # 默认嵌入维度
+            
+        self.distance_metric = "angular"  # 余弦相似度
+        
+        # 确保索引对象被正确创建
+        self.load_index()
+        
+        # 双重检查索引对象
+        if self.index is None:
+            logger.warning("Index was None after load_index(), creating new index")
             self.index = AnnoyIndex(self.dim, self.distance_metric)
-            print("No existing Annoy index found")
+
+    def load_index(self):
+        try:
+            if self.index_path.exists():
+                logger.info(f"Loading existing index from {self.index_path}")
+                self.index = AnnoyIndex(self.dim, self.distance_metric)
+                self.index.load(str(self.index_path))
+                
+                if self.metadata_path.exists():
+                    with open(self.metadata_path, 'r', encoding='utf-8') as f:
+                        self.metadata = json.load(f)
+                logger.info(f"Loaded Annoy index with {len(self.metadata)} chunks")
+            else:
+                logger.info("No existing index found, creating new index")
+                self.index = AnnoyIndex(self.dim, self.distance_metric)
+        except Exception as e:
+            logger.error(f"Error loading index: {str(e)}")
+            # 创建新的索引作为回退
+            self.index = AnnoyIndex(self.dim, self.distance_metric)
+
     def add_chunks(self, chunks, embeddings):
         if not embeddings:
+            logger.warning("No embeddings provided, skipping add_chunks")
             return
+            
+        # 确保索引对象存在
+        if self.index is None:
+            logger.warning("Index is None, creating new index")
+            self.index = AnnoyIndex(self.dim, self.distance_metric)
+        
         # 确保嵌入是 numpy 数组
         embeddings = np.array(embeddings).astype('float32')
+        
         # 添加向量到 Annoy 索引
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            if embedding.size == 0:
+                logger.warning(f"Skipping empty embedding for chunk {i}")
+                continue
+                
             chunk_id = chunk["chunk_id"]
             self.index.add_item(i, embedding.tolist())
             self.metadata[chunk_id] = {
@@ -546,28 +599,62 @@ class VectorStore:
                 "source": chunk["source"],
                 "embedding": embedding.tolist()
             }
-        # 构建索引（n_trees 控制树的数量，影响精度和速度）
+        
+        # 构建索引
+        logger.info("Building index...")
         self.index.build(10)  # 默认 10 棵树
+        logger.info("Index built successfully")
+        
+        # 保存索引
         self.save_index()
+
     def similarity_search(self, query_embedding, top_k=5):
+        if self.index is None:
+            logger.warning("Index is None, cannot perform search")
+            return []
+            
+        if not query_embedding:
+            logger.warning("Empty query embedding")
+            return []
+            
         query_embedding = np.array([query_embedding]).astype('float32')
-        # 获取最近邻（返回索引列表）
-        indices = self.index.get_nns_by_vector(query_embedding[0], top_k, include_distances=True)
+        
+        # 获取最近邻
+        try:
+            indices, distances = self.index.get_nns_by_vector(
+                query_embedding[0], 
+                top_k, 
+                include_distances=True
+            )
+        except Exception as e:
+            logger.error(f"Error in similarity_search: {str(e)}")
+            return []
+            
         results = []
-        for idx, distance in zip(indices[::2], indices[1::2]):
+        for idx, distance in zip(indices, distances):
             if idx < len(self.metadata):
                 chunk_ids = list(self.metadata.keys())
-                chunk_id = chunk_ids[idx]
-                chunk_data = self.metadata[chunk_id]
-                # Annoy 的余弦相似度范围是 [0, 1]，0 表示完全不相似
-                score = 1 - distance  # 转换为相似度得分
-                results.append((score, chunk_id, chunk_data))
+                if idx < len(chunk_ids):
+                    chunk_id = chunk_ids[idx]
+                    chunk_data = self.metadata[chunk_id]
+                    score = 1 - distance  # 转换为相似度得分
+                    results.append((score, chunk_id, chunk_data))
+        
         return sorted(results, key=lambda x: x[0], reverse=True)
+
     def save_index(self):
+        if self.index is None:
+            logger.warning("Index is None, cannot save")
+            return
+            
         self.index.save(str(self.index_path))
         with open(self.metadata_path, 'w', encoding='utf-8') as f:
             json.dump(self.metadata, f, ensure_ascii=False, indent=2)
-        print(f"Saved Annoy index with {len(self.metadata)} chunks")
+        logger.info(f"Saved Annoy index with {len(self.metadata)} chunks")
+=== END ===
+
+=== FILE: backend\__init__.py ===
+
 === END ===
 
 === FILE: backend\ai_service.py ===
@@ -649,18 +736,23 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(BASE_DIR / "backend"))
+
 from ai_service import AIService
 import os
-from pathlib import Path
 from RAG.document_loader import DocumentLoader
 from fastapi.responses import FileResponse
+from RAG import initialize_rag_system
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 app = FastAPI()
 # 添加静态文件服务
     
 app.mount("/static", StaticFiles(directory=BASE_DIR / "frontend"), name="static")
-
 
 # 允许跨域
 app.add_middleware(
@@ -691,7 +783,11 @@ async def update_config(new_config: dict):
     ai_service.update_config(new_config)
     return {"status": "config updated"}
 
-
+# main.py中新增
+@app.post("/rebuild_index")
+async def rebuild_index():
+    ai_service.rag_retriever = initialize_rag_system(force_rebuild=True)
+    return {"status": "index rebuilt"}
 # 修改上传文档端点
 
 @app.post("/upload_document")
@@ -719,10 +815,6 @@ if __name__ == "__main__":
      
 === END ===
 
-=== FILE: backend\rag.py ===
-
-=== END ===
-
 === FILE: backend\requirements.txt ===
 # requirements.txt
 fastapi>=0.68.0
@@ -733,7 +825,8 @@ PyPDF2>=3.0.1
 python-docx>=0.8.11
 markdown>=3.4.1
 langchain-text-splitters>=0.0.1
-annoy>=1.17.0  # 可选gpu版本或cpu版本，pip安装无效就用conda
+annoy>=1.17.0
+tqdm>=4.66.1  # 添加进度条库
 === END ===
 
 === FILE: frontend\index.html ===
@@ -743,7 +836,7 @@ annoy>=1.17.0  # 可选gpu版本或cpu版本，pip安装无效就用conda
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chat Module</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
 </head>
@@ -776,7 +869,7 @@ annoy>=1.17.0  # 可选gpu版本或cpu版本，pip安装无效就用conda
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>
 === END ===

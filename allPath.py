@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
     ignored_dirs = [
         ".git", "log", "__pycache__", "node_modules",
-        "allPath.py", "output.json", "output.txt", ".vscode"
+        "allPath.py", "output.json", "output.txt", ".vscode","data"
     ]
 
     tree, code_blocks = generate_tree(base_path, ignored_dirs)
