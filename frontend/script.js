@@ -53,7 +53,7 @@ async function updateConfig() {
 }
 async function buildEmbeddings() {
     const statusDiv = document.getElementById('embedding-status');
-    statusDiv.textContent = "正在生成向量嵌入...这可能需要一段时间";
+    statusDiv.textContent = "正在生成...";
     
     try {
         const response = await fetch('http://localhost:8000/build_embeddings', {
@@ -75,11 +75,11 @@ async function uploadDocument() {
     const statusDiv = document.getElementById('upload-status');
     
     if (!file) {
-        statusDiv.textContent = "请选择文件";
+        statusDiv.textContent = "Please select a file to upload.";
         return;
     }
+    statusDiv.textContent = "Uploading...";
     
-    statusDiv.textContent = "上传中...";
     
     try {
         const formData = new FormData();
@@ -92,14 +92,14 @@ async function uploadDocument() {
         
         const data = await response.json();
         if (data.status === 'success') {
-            statusDiv.textContent = `上传成功: ${data.file_path}`;
+            statusDiv.textContent = `upload success: ${data.file_path}`;
             // 清空文件输入
             fileInput.value = '';
         } else {
-            statusDiv.textContent = `上传失败: ${data.detail || '未知错误'}`;
+            statusDiv.textContent = `upload failed: ${data.detail || 'unknown error'}`;
         }
     } catch (error) {
-        statusDiv.textContent = `上传错误: ${error.message}`;
+        statusDiv.textContent = `upload error: ${error.message}`;
     }
 }
 

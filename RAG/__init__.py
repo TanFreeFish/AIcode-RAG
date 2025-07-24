@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def initialize_rag_system(force_rebuild=False):
     """初始化RAG系统"""
-    vector_store = VectorStore()
+    vector_store = VectorStore(rebuild_mode=force_rebuild)  # 添加重建模式参数
     if not force_rebuild and vector_store.index_path.exists() and vector_store.metadata_path.exists():
         logger.info("Using existing vector store")
         return Retriever()
@@ -84,8 +84,8 @@ def build_vector_store():
     
     logger.info(f"Embeddings generated in {time.time()-start_time:.2f} seconds")
     
-    # 添加到向量存储
-    vector_store = VectorStore()
+    # 添加到向量存储（使用重建模式）
+    vector_store = VectorStore(rebuild_mode=True)  # 启用重建模式
     vector_store.add_chunks(chunks, embeddings)
     
     logger.info("Vector store built successfully")

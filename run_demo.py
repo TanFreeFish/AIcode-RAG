@@ -1,8 +1,7 @@
-# run_demo.py
-
 """
 一键启动RAG系统，启动后端服务，打开前端页面
 """
+# run_demo.py
 import subprocess
 import webbrowser
 import time
@@ -26,13 +25,7 @@ else:
 sys.path.append(str(BASE_DIR))
 
 def initialize_rag():
-    """初始化RAG系统，强制重建向量索引"""
-    # # 删除现有向量库
-    # vector_store_dir = BASE_DIR / "data" / "vector_store"
-    # if vector_store_dir.exists():
-    #     logger.info("Removing existing vector store...")
-    #     shutil.rmtree(vector_store_dir)
-    
+    """初始化RAG系统"""
     # 检查Ollama服务是否运行
     logger.info("Checking Ollama service...")
     try:

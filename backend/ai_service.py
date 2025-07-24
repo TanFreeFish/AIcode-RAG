@@ -21,7 +21,7 @@ class AIService:
             return self._call_ollama(full_prompt)
         elif self.model_type == 'openai':
             return self._call_openai(full_prompt)
-        # 可扩展其他API
+       
         
     def _build_prompt(self, prompt: str, context: Optional[str]) -> str:
         """构建最终提示词，整合RAG内容"""

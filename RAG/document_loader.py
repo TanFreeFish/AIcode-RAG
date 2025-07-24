@@ -51,6 +51,11 @@ class DocumentLoader:
                             content.append(text)
                 return "\n".join(content)
             
+            elif ext == ".json":  
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    import json
+                    data = json.load(f)
+                    return str(data)  
             elif ext == ".docx":
                 doc = Document(file_path)
                 return "\n".join([para.text for para in doc.paragraphs])

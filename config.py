@@ -10,7 +10,7 @@ VECTOR_STORE_DIR = os.path.join(DATA_DIR, 'vector_store')
 RAG_CONFIG = {
     # 文档加载配置
     "document_loader": {
-        "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md"]
+        "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md",".json", ".csv"]
     },
     
     # 文本分割配置 
@@ -33,7 +33,7 @@ RAG_CONFIG = {
     
     # 检索器配置
     "retriever": {
-        "top_k": 4,
-        "score_threshold": 0.03
+        "top_k": 20,
+        "score_threshold": -1.0
     }
 }

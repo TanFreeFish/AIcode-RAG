@@ -37,7 +37,7 @@ class EmbeddingModel:
                 embeddings.append([])
                 continue
                 
-            for attempt in range(3):  # 最多重试3次
+            for attempt in range(3):  
                 try:
                     response = requests.post(
                         self.api_url,
@@ -65,7 +65,7 @@ class EmbeddingModel:
                     else:
                         logger.error(f"Error embedding text: {response.status_code} - {response.text}")
                     
-                    # 最后一次尝试仍然失败
+                   
                     if attempt == 2:
                         logger.error(f"Failed to generate embedding after 3 attempts for text: {text[:50]}...")
                         embeddings.append([])
@@ -76,5 +76,5 @@ class EmbeddingModel:
         return embeddings
     
     def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
-        # 实现HuggingFace嵌入逻辑（根据您的需求）
-        return [[] for _ in texts]  # 示例返回
+        
+        return [[] for _ in texts] 

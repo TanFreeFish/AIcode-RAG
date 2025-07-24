@@ -12,7 +12,7 @@ logger = logging.getLogger("embedding_builder")
 def main():
     logger.info("Starting manual embedding process...")
     
-    # 调用RAG模块中的构建函数
+   
     success = build_vector_store()
     
     if success:
