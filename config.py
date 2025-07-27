@@ -10,7 +10,7 @@ VECTOR_STORE_DIR = os.path.join(DATA_DIR, 'vector_store')
 RAG_CONFIG = {
     # 文档加载配置
     "document_loader": {
-        "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md",".json", ".csv"]
+        "extensions": [".txt", ".pdf", ".docx", ".pptx", ".md", ".json", ".csv"]
     },
     
     # 文本分割配置 
@@ -35,5 +35,11 @@ RAG_CONFIG = {
     "retriever": {
         "top_k": 20,
         "score_threshold": -1.0
+    },
+    
+    # 新增摘要配置
+    "summarizer": {
+        "model_name": "qwen:7b",  # 使用Qwen模型生成摘要
+        "max_summary_length": 15  # 摘要最大长度（字数）
     }
 }

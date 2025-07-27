@@ -41,6 +41,7 @@ class Retriever:
             if score >= self.score_threshold:
                 context.append({
                     "text": chunk_data["text"],
+                    "summary": chunk_data["summary"],  # 包含摘要
                     "source": chunk_data["source"],
                     "score": round(score, 3)
                 })
@@ -56,7 +57,7 @@ class Retriever:
         context_str = "检索到的相关上下文信息：\n\n"
         for i, item in enumerate(context_items, 1):
             source_name = Path(item["source"]).name
-            context_str += f"### 上下文片段 {i} (来源: {source_name}, 相似度: {item['score']})\n"
+            context_str += f"### 上下文片段 {i} (来源: {source_name}, 相似度: {item['score']}, 摘要: {item['summary']})\n"
             context_str += f"{item['text']}\n\n"
         
         return context_str.strip()

@@ -28,7 +28,7 @@ class AIService:
         if context:
             return (
                 f"<|im_start|>system\n"
-                f"你是一个AI助手，请基于以下上下文信息回答问题：\n\n"
+                f"你是一个AI助手，请基于以下上下文信息回答问题。每个上下文片段包含摘要和详细内容：\n\n"
                 f"{context}\n"
                 f"<|im_end|>\n"
                 f"<|im_start|>user\n"
