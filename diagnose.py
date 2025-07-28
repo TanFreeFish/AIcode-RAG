@@ -1,18 +1,21 @@
 # diagnose.py
 import logging
 from RAG import initialize_rag_system
-from RAG.retriever import Retriever
+from config import RAG_CONFIG, SERVICE_CONFIG
+import requests
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def test_rag():
-    # 1. 初始化RAG
-    logger.info("=== 初始化RAG系统 ===")
+def test_rerank_results():
+    """测试重排序结果"""
+    logger.info("=== 测试重排序结果 ===")
+    
+    # 初始化RAG系统
     retriever = initialize_rag_system()
     
-    # 新增摘要层测试
-    logger.info("\n=== 测试语义摘要层 ===")
+    # 测试查询
     test_queries = [
         "人如何自律",
         "html是什么",
@@ -21,40 +24,81 @@ def test_rag():
     ]
     
     for query in test_queries:
-        logger.info(f"\n摘要查询: '{query}'")
-        # 直接调用向量存储的摘要搜索
-        from RAG.vector_store import VectorStore
-        vector_store = VectorStore()
-        vector_store.load_index()
+        logger.info(f"\n{'='*50}")
+        logger.info(f"查询: '{query}'")
+        logger.info(f"{'='*50}")
         
-        # 生成查询嵌入
-        from RAG.embeddings import EmbeddingModel
-        embedding_model = EmbeddingModel()
-        query_embedding = embedding_model.embed_texts([query])[0]
+        # 测试基础检索（无重排）
+        logger.info("\n--- 基础检索结果（无重排） ---")
+        base_context = retriever.retrieve_raw(query, use_rerank=False)
+        logger.info("基础检索摘要:")
+        for idx, item in enumerate(base_context, 1):
+            logger.info(f"{idx}. {item.get('summary', '')}（{item.get('score', '')}）")
         
-        if query_embedding:
-            # 使用摘要索引搜索
-            results = vector_store.summary_index.get_nns_by_vector(
-                query_embedding, 
-                5,  # 获取前5个结果
-                include_distances=True
-            )
-            
-            indices, distances = results
-            logger.info(f"找到 {len(indices)} 个相关摘要:")
-            for i, (idx, dist) in enumerate(zip(indices, distances)):
-                if idx < len(vector_store.metadata):
-                    metadata = vector_store.metadata[idx]
-                    # 计算余弦相似度
-                    cosine_sim = 1 - (dist ** 2) / 2.0
-                    
-                    # 输出摘要和对应内容
-                    logger.info(f"{i+1}. [相似度: {cosine_sim:.3f}] 摘要: '{metadata['summary']}'")
-                    logger.info(f"   来源: {metadata['source']}")
-                    logger.info(f"   内容: {metadata['text'][:500]}...")  # 输出前200个字符
-                    logger.info("\n")
+        # 测试重排序检索
+        if RAG_CONFIG["reranker"].get("enable", False):
+            logger.info("\n--- 重排序结果 ---")
+            start_time = time.time()
+            rerank_context = retriever.retrieve_raw(query, use_rerank=True)
+            end_time = time.time()
+            logger.info("重排序摘要:")
+            for idx, item in enumerate(rerank_context, 1):
+                logger.info(f"{idx}. {item.get('summary', '')}（{item.get('score', '')}）")
+            logger.info(f"重排耗时: {end_time - start_time:.2f}秒")
         else:
-            logger.warning(f"无法生成查询 '{query}' 的嵌入向量")
+            logger.warning("重排序功能未启用")
+
+def test_ollama_service():
+    """测试Ollama服务是否可用"""
+    logger.info("\n=== 测试Ollama服务 ===")
+    try:
+        start_time = time.time()
+        response = requests.get(SERVICE_CONFIG["ollama_host"], timeout=5)
+        latency = time.time() - start_time
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Ollama服务可用! 响应时间: {latency:.2f}秒")
+            return True
+        else:
+            logger.error(f"❌ Ollama服务异常: HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        logger.error(f"❌ 连接Ollama失败: {str(e)}")
+        return False
+
+def test_embedding_generation():
+    """测试嵌入生成功能"""
+    logger.info("\n=== 测试嵌入生成 ===")
+    from RAG.embeddings import EmbeddingModel
+    
+    try:
+        model = EmbeddingModel()
+        texts = ["这是一个测试句子"]
+        
+        start_time = time.time()
+        embeddings = model.embed_texts(texts)
+        latency = time.time() - start_time
+        
+        if embeddings and len(embeddings) == len(texts):
+            logger.info(f"✅ 嵌入生成成功! 耗时: {latency:.2f}秒")
+            logger.info(f"嵌入维度: {len(embeddings[0])}")
+            return True
+        else:
+            logger.error(f"❌ 嵌入生成失败: 返回数量不匹配")
+            return False
+    except Exception as e:
+        logger.error(f"❌ 嵌入生成异常: {str(e)}")
+        return False
 
 if __name__ == "__main__":
-    test_rag()
+    logger.info("=== 开始RAG重排序诊断 ===")
+    
+    # 检查基础服务
+    ollama_ok = test_ollama_service()
+    embedding_ok = test_embedding_generation()
+    
+    if ollama_ok and embedding_ok:
+        # 运行重排序测试
+        test_rerank_results()
+    else:
+        logger.error("基础服务不可用，无法进行重排序测试")

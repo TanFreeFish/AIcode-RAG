@@ -1,19 +1,15 @@
-"""
-一键启动RAG系统，启动后端服务，打开前端页面
-"""
 """run_demo.py
 一键启动RAG系统，启动后端服务，打开前端页面
 """
 import subprocess
 import webbrowser
 import time
-import os
-import shutil
 import sys
 from pathlib import Path
 import requests
 import logging
 import threading
+from config import SERVICE_CONFIG
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -68,7 +64,7 @@ def initialize_rag():
     )
     
     try:
-        response = requests.get("http://localhost:11434", timeout=5)
+        response = requests.get(f"{SERVICE_CONFIG['ollama_host']}", timeout=5)
         if response.status_code != 200:
             logger.error("Ollama service not running. Please start Ollama first.")
             demo_progress(
@@ -133,7 +129,10 @@ def start_server():
     try:
         # 使用Popen启动服务器
         process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"],
+            [
+                sys.executable, "-m", "uvicorn", "backend.main:app",
+                "--host", "0.0.0.0", "--port", str(SERVICE_CONFIG["backend_port"])
+            ],
             cwd=BASE_DIR,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -145,7 +144,10 @@ def start_server():
         
         # 检查服务器是否启动
         try:
-            response = requests.get("http://localhost:8000", timeout=5)
+            response = requests.get(
+                f"http://localhost:{SERVICE_CONFIG['backend_port']}", 
+                timeout=5
+            )
             if response.status_code == 200:
                 demo_progress(
                     stage="server",
@@ -197,7 +199,7 @@ def run_demo():
     time.sleep(1)  # 确保服务器完全启动
     
     try:
-        webbrowser.open('http://localhost:8000')
+        webbrowser.open(f'http://localhost:{SERVICE_CONFIG["backend_port"]}')
         demo_progress(
             stage="browser",
             message="聊天界面已打开",
