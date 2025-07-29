@@ -12,12 +12,20 @@ logger = logging.getLogger(__name__)
 
 class DocumentLoader:
     def __init__(self):
+        """
+        @brief 初始化文档加载器
+        """
         self.extensions = RAG_CONFIG["document_loader"]["extensions"]
         self.documents_dir = Path(DOCUMENTS_DIR)
         self.documents_dir.mkdir(parents=True, exist_ok=True)
     
     def load_documents(self):
-        """加载文档目录中的所有支持文档"""
+        """
+        
+        @brief 从配置的文档目录中查找并加载所有支持格式的文档文件
+        
+        @return list: 文档列表，每个元素包含文件路径和内容的字典
+        """
         documents = []
         
         for ext in self.extensions:
@@ -33,7 +41,13 @@ class DocumentLoader:
         return documents
     
     def _load_file(self, file_path):
-        """根据文件类型加载内容"""
+        """
+        @brief 根据文件扩展名识别文件类型并使用相应方法加载文件内容
+        
+        @param file_path (Path): 需要加载的文件路径对象
+        
+        @return str: 文件内容字符串，加载失败时返回None
+        """
         ext = file_path.suffix.lower()
         
         try:
@@ -72,7 +86,13 @@ class DocumentLoader:
             return None
 
     def add_document(self, file_path):
-        """添加单个文档到存储"""
+        """
+        @brief 将指定的文档文件复制到文档存储目录中
+        
+        @param file_path (str): 源文件的完整路径
+        
+        @return str: 目标文件路径字符串，失败时返回None
+        """
         dest_path = self.documents_dir / Path(file_path).name
         try:
             with open(file_path, 'rb') as src, open(dest_path, 'wb') as dst:

@@ -11,7 +11,7 @@ import logging
 import threading
 from config import SERVICE_CONFIG
 
-# 设置日志
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -20,12 +20,21 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = Path(__file__).resolve().parent
 
-# 添加项目根目录到Python路径
+
 sys.path.append(str(BASE_DIR))
 
-# 进度显示函数
+
 def demo_progress(stage, total=0, current=0, message="", details="", status="progress"):
-    """显示进度信息"""
+    """
+    @brief 显示进度信息
+    
+    @param stage 进度阶段
+    @param total 总数
+    @param current 当前进度
+    @param message 消息内容
+    @param details 详细信息
+    @param status 状态
+    """
     if stage == "rag_init":
         prefix = "🧩 RAG初始化"
     elif stage == "server":
@@ -52,11 +61,15 @@ def demo_progress(stage, total=0, current=0, message="", details="", status="pro
     sys.stdout.flush()
     
     if status in ["completed", "error"]:
-        print()  # 完成时换行
+        print()  
 
 def initialize_rag():
-    """初始化RAG系统"""
-    # 检查Ollama服务是否运行
+    """
+    @brief 初始化RAG系统
+    
+    @return 初始化后的RAG检索器，失败时返回None
+    """
+    
     demo_progress(
         stage="rag_init",
         message="检查Ollama服务...",
@@ -82,7 +95,7 @@ def initialize_rag():
         )
         return None
     
-    # 导入RAG初始化函数
+    
     try:
         from RAG import initialize_rag_system
     except ImportError as e:
@@ -119,7 +132,11 @@ def initialize_rag():
         return None
 
 def start_server():
-    """启动后端服务器"""
+    """
+    @brief 启动后端服务器
+    
+    @return 服务器进程对象，失败时返回None
+    """
     demo_progress(
         stage="server",
         message="正在启动后端服务...",
@@ -127,7 +144,7 @@ def start_server():
     )
     
     try:
-        # 使用Popen启动服务器
+        
         process = subprocess.Popen(
             [
                 sys.executable, "-m", "uvicorn", "backend.main:app",
@@ -139,10 +156,10 @@ def start_server():
             text=True
         )
         
-        # 等待服务器启动
+        
         time.sleep(3)
         
-        # 检查服务器是否启动
+        
         try:
             response = requests.get(
                 f"http://localhost:{SERVICE_CONFIG['backend_port']}", 
@@ -178,7 +195,10 @@ def start_server():
         return None
 
 def run_demo():
-    # 初始化RAG系统
+    """
+    @brief 运行演示程序，包括初始化RAG系统、启动后端服务和打开前端页面
+    """
+    
     rag_retriever = initialize_rag()
     if not rag_retriever:
         logger.error("Failed to initialize RAG system. Exiting.")
@@ -196,7 +216,7 @@ def run_demo():
         message="正在打开聊天界面...",
         status="progress"
     )
-    time.sleep(1)  # 确保服务器完全启动
+    time.sleep(1)  
     
     try:
         webbrowser.open(f'http://localhost:{SERVICE_CONFIG["backend_port"]}')
@@ -215,13 +235,19 @@ def run_demo():
     logger.info("Chat interface opened. Press Ctrl+C to stop.")
     
     try:
-        # 打印服务器日志
+        
         def log_stream(stream, prefix):
+            """
+            @brief 日志流处理函数
+            
+            @param stream 日志流
+            @param prefix 前缀标识
+            """
             for line in stream:
-                if line:  # 确保行不为空
+                if line:  
                     logger.info(f"{prefix}: {line.strip()}")
         
-        # 启动线程捕获stdout和stderr
+        
         stdout_thread = threading.Thread(
             target=log_stream, 
             args=(server_process.stdout, "SERVER"),
@@ -236,7 +262,7 @@ def run_demo():
         stdout_thread.start()
         stderr_thread.start()
         
-        # 等待服务器进程结束
+        
         server_process.wait()
     except KeyboardInterrupt:
         logger.info("Stopping server...")

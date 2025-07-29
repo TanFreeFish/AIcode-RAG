@@ -5,12 +5,15 @@ from config import RAG_CONFIG
 import logging
 import time
 
-# 设置日志
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class EmbeddingModel:
     def __init__(self):
+        """
+        @brief 初始化嵌入模型
+        """
         config = RAG_CONFIG["embeddings"]
         self.model_type = config["model_type"]
         self.model_name = config["model_name"]
@@ -18,7 +21,13 @@ class EmbeddingModel:
         self.api_url = "http://localhost:11434/api/embeddings"
     
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """将文本列表转换为嵌入向量"""
+        """
+        @brief 根据配置的模型类型，使用相应的方法将输入文本转换为向量表示
+        
+        @param texts (List[str]): 需要转换为向量的文本列表
+        
+        @return List[List[float]]: 对应的向量表示列表，每个向量是一个浮点数列表
+        """
         if not texts:
             return []
             
@@ -30,7 +39,13 @@ class EmbeddingModel:
             raise ValueError(f"Unsupported model type: {self.model_type}")
     
     def _embed_with_ollama(self, texts: List[str]) -> List[List[float]]:
-        """使用Ollama API生成嵌入 - 增强错误处理和重试机制"""
+        """
+        @brief 通过HTTP请求调用Ollama的嵌入API，将文本转换为向量表示，并包含重试机制
+        
+        @param texts (List[str]): 需要生成嵌入的文本列表
+        
+        @return List[List[float]]: 文本对应的向量表示列表
+        """
         embeddings = []
         for text in texts:
             if not text.strip():
@@ -52,7 +67,7 @@ class EmbeddingModel:
                         data = response.json()
                         if "embedding" in data and data["embedding"]:
                             embedding = data["embedding"]
-                            # 检查嵌入维度
+                            
                             if len(embedding) == self.dim:
                                 embeddings.append(embedding)
                                 break
@@ -76,5 +91,11 @@ class EmbeddingModel:
         return embeddings
     
     def _embed_with_huggingface(self, texts: List[str]) -> List[List[float]]:
+        """
+        @brief 占位方法，用于HuggingFace模型的嵌入生成（当前未实现）
         
-        return [[] for _ in texts] 
+        @param texts (List[str]): 需要生成嵌入的文本列表
+        
+        @return List[List[float]]: 空向量列表，每个元素都是空列表
+        """
+        return [[] for _ in texts]
