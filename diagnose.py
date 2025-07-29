@@ -9,7 +9,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def test_rerank_results():
-    """测试重排序结果"""
+    """
+    @brief 测试重排序结果
+    """
     logger.info("=== 测试重排序结果 ===")
     
     # 初始化RAG系统
@@ -49,7 +51,11 @@ def test_rerank_results():
             logger.warning("重排序功能未启用")
 
 def test_ollama_service():
-    """测试Ollama服务是否可用"""
+    """
+    @brief 测试Ollama服务是否可用
+    
+    @return bool: 服务可用返回True，否则返回False
+    """
     logger.info("\n=== 测试Ollama服务 ===")
     try:
         start_time = time.time()
@@ -67,7 +73,11 @@ def test_ollama_service():
         return False
 
 def test_embedding_generation():
-    """测试嵌入生成功能"""
+    """
+    @brief 测试嵌入生成功能
+    
+    @return bool: 嵌入生成成功返回True，否则返回False
+    """
     logger.info("\n=== 测试嵌入生成 ===")
     from RAG.embeddings import EmbeddingModel
     
